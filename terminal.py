@@ -253,6 +253,7 @@ class ScreenBuffer:
         self.alternate = []
         for row in range(0, self.height):
             self.alternate.append(TerminalRow(self.width, self))
+        self.set_buffer_scroll_range(0, self.height)
 
     def insert_row(self, num=1):
         buf = self.get_buffer()

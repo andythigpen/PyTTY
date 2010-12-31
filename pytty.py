@@ -76,6 +76,7 @@ class PyttyEventFilter(QtCore.QObject):
                 return True
         return False
 
+
 class PyttySavedList(QtGui.QListWidget):
     def __init__(self, group):
         QtGui.QListWidget.__init__(self)
@@ -230,13 +231,13 @@ class PyttyPage(QtGui.QWidget):
 
         fname = os.path.join(sys.path[0], "icons", "save.png")
         save_button = QtGui.QPushButton(QtGui.QIcon(fname), "")
-        save_button.setToolTip("Save")
+        save_button.setToolTip("Save Login")
         save_button.clicked.connect(self.save_entry)
         saved_layout.addWidget(save_button, 2, 1)
         
         fname = os.path.join(sys.path[0], "icons", "remove.png")
         remove_button = QtGui.QPushButton(QtGui.QIcon(fname), "")
-        remove_button.setToolTip("Remove")
+        remove_button.setToolTip("Remove Login")
         remove_button.clicked.connect(self.remove_entry)
         saved_layout.addWidget(remove_button, 2, 2)
         saved_group.setLayout(saved_layout)
@@ -322,6 +323,7 @@ class PyttyAddButton(QtGui.QPushButton):
     def __init__(self, tabbar):
         fname = os.path.join(sys.path[0], "icons", "plus.png")
         QtGui.QPushButton.__init__(self, QtGui.QIcon(fname), "")
+        self.setToolTip("Add New Tab")
         self.tabbar = tabbar
 
     def sizeHint(self):

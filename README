@@ -1,0 +1,14 @@
+============================
+ README
+============================
+PyTTY is an xterm emulator.  At this point it is not fully functional as it 
+does not recognize all of the same escape sequences as xterm, but it may 
+be useful for some.  
+
+============================
+ PREREQUISITES
+============================
+- Python 2.6+
+- PyQt4
+- Paramiko 
+

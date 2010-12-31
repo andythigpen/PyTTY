@@ -264,9 +264,13 @@ class ScreenBuffer:
         self.log.debug("Inserted %s row(s): %s" % (num, len(buf)))
 
         # delete rows that are greater than the scroll_bottom
-        scroll_bottom = self.get_scroll_bottom() - 1
+        scroll_top = self.get_scroll_top()
+        scroll_bottom = self.get_scroll_bottom()
         del buf[scroll_bottom:scroll_bottom + num]
-        self.parent.set_dirty()
+        
+        repaint_buf = buf[scroll_top - 1:scroll_bottom - 1]
+        for row in repaint_buf:
+            row.set_dirty()
 
     def delete_row(self, num=1):
         buf = self.get_buffer()
@@ -455,16 +459,21 @@ class ScreenBuffer:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
             buf = self.get_buffer()
-            for cnt in range(0, times):
-                row = buf.pop(scroll_top - 1)
-                row.reset()
-                buf.insert(scroll_bottom - 1, row)
-            self.parent.set_dirty()
-            self.print_debug()
+            first = scroll_top - 1
+            last = scroll_bottom - 1
+
+            rows = [TerminalRow(self.width, self) for x in range(0, times)]
+            del buf[first:first + times]
+            buf.insert(last, '')
+            buf[last:last + 1] = rows
+
+            repaint_buf = buf[first:last]
+            for row in repaint_buf:
+                row.set_dirty()
             return
+
         self.base += times
         self.log.debug("Scrolling screen buffer, base = %s, row = %s" % (self.base, self.cursor.row))
-        #if (self.base + self.height) - 1 >= self.scrollback:
         if (self.base - times) >= self.scrollback:
             self.log.debug("Scrollback exceeded...rolling over buffer.")
             self.base -= times

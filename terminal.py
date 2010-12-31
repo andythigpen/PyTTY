@@ -115,58 +115,34 @@ class TerminalCell:
         return self.dirty
 
 
-class TerminalRow:
+class TerminalRow(list):
     def __init__(self, width, screen):
+        list.__init__(self)
         self.log = log.get_log(self)
         self.width = width
         self.screen = screen
         self.__create_cells()
 
     def __create_cells(self):
-        self.row = []
         for idx in range(0, self.width):
-            self.row.append(TerminalCell())
-
-    def append(self, cell):
-        self.row.append(cell)
-
-    def extend(self, cells):
-        self.row.extend(cells)
-
-    def insert(self, idx, cell):
-        self.row.insert(idx, cell)
+            self.append(TerminalCell())
 
     def expand(self, width):
-        if width < len(self.row):
+        if width < len(self):
             # don't resize the row
             self.width = width
             return
-        diff = width - len(self.row)
+        diff = width - len(self)
         #self.log.debug("Adding %s cells to row." % diff)
         for cnt in range(0, diff):
-            self.row.append(TerminalCell())
+            self.append(TerminalCell())
         self.width = width
 
-    def __len__(self):
-        return len(self.row)
-
-    def __getitem__(self, key):
-        return self.row.__getitem__(key)
-
-    def __setitem__(self, key, value):
-        return self.row.__setitem__(key, value)
-
-    def __delitem__(self, key):
-        return self.row.__delitem__(key)
-
-    def __iter__(self):
-        return self.row.__iter__()
-
-    def draw(self, painter, row): #, start_rect, end_rect):
-        prev = self.row[0]
+    def draw(self, painter, row):
+        prev = self[0]
         rect = self.screen.create_rect_from_cell(row, 0)
         for col in range(1, self.width):
-            cell = self.row[col]
+            cell = self[col]
             if cell.background_matches(prev):
                 # merge the drawing of two cells
                 new_rect = self.screen.create_rect_from_cell(row, col)
@@ -178,31 +154,31 @@ class TerminalRow:
             prev = cell
         prev.draw_background(painter, rect)
 
-        prev = self.row[0]
+        prev = self[0]
         rect = self.screen.create_rect_from_cell(row, 0)
-        text = unicode(self.row[0])
+        text = unicode(self[0])
         for col in range(1, self.width):
-            cell = self.row[col]
+            cell = self[col]
             if cell.foreground_matches(prev):
                 # merge the drawing of two cells
                 new_rect = self.screen.create_rect_from_cell(row, col)
                 rect = rect.unite(new_rect)
-                text += unicode(self.row[col])
+                text += unicode(self[col])
             else:
                 # we encountered a new foreground color
                 prev.draw_text(painter, rect, text)
                 rect = self.screen.create_rect_from_cell(row, col)
-                text = unicode(self.row[col])
+                text = unicode(self[col])
             prev = cell
         prev.draw_text(painter, rect, text)
 
     def reset(self):
-        for cell in self.row:
+        for cell in self:
             cell.reset()
             cell.set_dirty(True)
 
     def set_dirty(self, dirty=True):
-        for cell in self.row:
+        for cell in self:
             cell.set_dirty(dirty)
                 
 

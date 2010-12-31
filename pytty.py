@@ -93,6 +93,7 @@ class PyttyPage(QtGui.QWidget):
         self.tabs = tabs
         self.connection_threads = []
         self.show_connection_page()
+        self.connecting = False
 
     def sizeHint(self):
         (width, height) = terminal.TerminalWidget.get_default_size()
@@ -120,9 +121,11 @@ class PyttyPage(QtGui.QWidget):
             item.setData(QtCore.Qt.UserRole, d)
             self.saved_items.addItem(item)
 
-    def changed_saved(self, current, previous):
-        if current is None:
+    def changed_saved(self):
+        items = self.saved_items.selectedItems()
+        if len(items) == 0:
             return
+        current = items[0]
         d = current.data(QtCore.Qt.UserRole).toMap()
         username = d[QtCore.QString('username')].toString()
         password = d[QtCore.QString('password')].toString()
@@ -158,7 +161,6 @@ class PyttyPage(QtGui.QWidget):
     def remove_entry(self):
         items = self.saved_items.selectedItems()
         for item in items:
-            print item.text()
             config = SafeConfig(os.path.join(sys.path[0], 'saved.ini'))
             config.remove_section(str(item.text()))
             config.write()
@@ -177,12 +179,12 @@ class PyttyPage(QtGui.QWidget):
         self.host_edit = QtGui.QLineEdit()
         self.host_edit.returnPressed.connect(self.connect)
         self.host_edit.editingFinished.connect(self.set_connection_name)
-        self.host_edit.textChanged.connect(self.clear_saved_selection)
+        self.host_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Host:", self.host_edit)
 
         self.port_edit = QtGui.QLineEdit("22")
         self.port_edit.returnPressed.connect(self.connect)
-        self.port_edit.textChanged.connect(self.clear_saved_selection)
+        self.port_edit.textEdited.connect(self.clear_saved_selection)
         validator = QtGui.QIntValidator(0, 65535, self)
         self.port_edit.setValidator(validator)
         layout.addRow("&Port:", self.port_edit)
@@ -190,13 +192,13 @@ class PyttyPage(QtGui.QWidget):
         self.username_edit = QtGui.QLineEdit()
         self.username_edit.returnPressed.connect(self.connect)
         self.username_edit.editingFinished.connect(self.set_connection_name)
-        self.username_edit.textChanged.connect(self.clear_saved_selection)
+        self.username_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Username:", self.username_edit)
 
         self.password_edit = QtGui.QLineEdit()
         self.password_edit.setEchoMode(QtGui.QLineEdit.Password)
         self.password_edit.returnPressed.connect(self.connect)
-        self.password_edit.textChanged.connect(self.clear_saved_selection)
+        self.password_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Password:", self.password_edit)
 
         # for debugging
@@ -218,7 +220,8 @@ class PyttyPage(QtGui.QWidget):
         saved_layout = QtGui.QGridLayout()
         self.saved_items = PyttySavedList(new_group)
         self.saved_items.setResizeMode(QtGui.QListView.Fixed)
-        self.saved_items.currentItemChanged.connect(self.changed_saved)
+        self.saved_items.itemSelectionChanged.connect(self.changed_saved)
+        self.saved_items.itemDoubleClicked.connect(self.connect)
         saved_layout.addWidget(self.saved_items, 0, 0, 1, 3)
 
         self.load_saved_items()
@@ -254,6 +257,9 @@ class PyttyPage(QtGui.QWidget):
         self.setLayout(page_vlayout)
 
     def connect(self):
+        if self.connecting:
+            return
+        self.connecting = True
         self.status_label.setText("")
         username = str(self.username_edit.text())
         password = str(self.password_edit.text())
@@ -271,17 +277,20 @@ class PyttyPage(QtGui.QWidget):
             term.recorder = open('recorder', 'w')
 
         class ConnectionThread(QtCore.QThread):
-            def __init__(self, terminal):
+            def __init__(self, terminal, index):
                 QtCore.QThread.__init__(self)
                 self.terminal = terminal
+                self.idx = index
                 
             def run(self):
                 self.terminal.connect()
 
-        th = ConnectionThread(term)
+        th = ConnectionThread(term, idx)
 
         def connection_finished():
+            self.connecting = False
             term = th.terminal
+            idx = th.idx
             if term.channel.is_connected():
                 self.tabs.removeTab(idx)
                 self.tabs.add_new_tab(term, index=idx)
@@ -292,6 +301,7 @@ class PyttyPage(QtGui.QWidget):
                     self.status_label.setText("Unable to connect.")
                 self.login_button.setDisabled(False)
                 del term
+                self.tabs.setTabIcon(idx, QtGui.QIcon())
             self.connection_threads.remove(th)
 
 
@@ -299,10 +309,8 @@ class PyttyPage(QtGui.QWidget):
         th.start()
         self.connection_threads.append(th)
 
-        #self.tabs.add_new_tab(term, 'PyTTY', idx)
         term.titleChanged.connect(self.change_tab_title)
         term.closing.connect(self.close_tab)
-
 
     def change_tab_title(self, title):
         sender = self.sender()
@@ -315,7 +323,7 @@ class PyttyPage(QtGui.QWidget):
         sender = self.sender()
         for idx in range(0, self.tabs.count()):
             widget = self.tabs.widget(idx)
-            if widget == sender: #or widget is None:
+            if widget == sender:
                 self.tabs.close_tab(idx)
 
 

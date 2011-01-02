@@ -322,13 +322,12 @@ class ScreenBuffer:
         if not hasattr(self, 'saved_cursor'):
             self.log.warning("Trying to restore unsaved cursor!!!")
             return
-        #TODO repaint the cursor correctly
-        #cell = self.cursor.get_cell()
-        #cell.set_dirty()
+        cell = self.cursor.get_cell()
+        cell.set_dirty()
         self.cursor = self.saved_cursor
         del self.saved_cursor       # DECRC
-        #cell = self.cursor.get_cell()
-        #cell.set_dirty()
+        cell = self.cursor.get_cell()
+        cell.set_dirty()
 
     def get_size(self):
         return (self.width, self.height)

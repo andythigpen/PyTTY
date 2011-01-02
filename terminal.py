@@ -268,7 +268,7 @@ class ScreenBuffer:
         scroll_bottom = self.get_scroll_bottom()
         del buf[scroll_bottom:scroll_bottom + num]
         
-        repaint_buf = buf[scroll_top - 1:scroll_bottom - 1]
+        repaint_buf = buf[scroll_top - 1:scroll_bottom]
         for row in repaint_buf:
             row.set_dirty()
 
@@ -283,6 +283,7 @@ class ScreenBuffer:
         new_rows = [TerminalRow(self.width, self) for x in range(0, num)]
         buf.insert(scroll_bottom, '')
         buf[scroll_bottom:scroll_bottom + 1] = new_rows
+        #TODO should this match insert row and only set specific rows dirty?
         self.parent.set_dirty()
 
     def get_buffer(self):
@@ -466,7 +467,7 @@ class ScreenBuffer:
             buf.insert(last, '')
             buf[last:last + 1] = rows
 
-            repaint_buf = buf[first:last]
+            repaint_buf = buf[first:last + 1]
             for row in repaint_buf:
                 row.set_dirty()
             return

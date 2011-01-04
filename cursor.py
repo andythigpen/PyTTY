@@ -19,7 +19,7 @@
 
 import log
 from PyQt4 import QtGui, QtCore
-from sequencer import ScrollScreenException
+from sequencer import ScrollScreenException, ScrollDirection
 
 class TerminalCursor:
     CURSOR_COLOR = QtGui.QColor(0, 255, 0)
@@ -80,6 +80,18 @@ class TerminalCursor:
         cell.reset()
         cell.set_dirty()
 
+    def previous_row(self, scroll=True, reset_col=False):
+        self.get_cell().set_dirty()
+        self.row -= 1
+        if self.row < 0:
+            self.row = 0
+        if reset_col:
+            self.col = 0
+        scroll_top = self.parent.get_scroll_top() - 1
+        if scroll and self.row < scroll_top:
+            raise ScrollScreenException(direction=ScrollDirection.UP)
+        self.get_cell().set_dirty()
+
     def advance_column(self):
         self.get_cell().set_dirty()
         self.col += 1
@@ -110,7 +122,6 @@ class TerminalCursor:
         self.get_cell().set_dirty()
 
     def up(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         if self.row == 0:
             return
@@ -119,7 +130,6 @@ class TerminalCursor:
         self.get_cell().set_dirty()
 
     def down(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         (width, height) = self.parent.get_size()
         base = self.parent.get_base_row()
@@ -131,7 +141,6 @@ class TerminalCursor:
         self.get_cell().set_dirty()
 
     def left(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         if self.col == 0:
             return
@@ -140,7 +149,6 @@ class TerminalCursor:
         self.get_cell().set_dirty()
 
     def right(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         (width, height) = self.parent.get_size()
         if self.col + num >= width:

@@ -18,8 +18,10 @@
 '''
 
 
+from c1control import *
 from character import *
 from cursor import *
+from dcs import *
 from decprivate import *
 from device import *
 from erase import *

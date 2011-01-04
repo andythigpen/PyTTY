@@ -26,7 +26,7 @@ import paramiko
 from PyQt4 import QtGui, QtCore
 from config import TerminalConfig
 from cursor import TerminalCursor
-from sequencer import TerminalEscapeSequencer
+from sequencer import TerminalEscapeSequencer, ScrollDirection
 
 class TerminalCell:
     def __init__(self):
@@ -404,13 +404,15 @@ class ScreenBuffer:
 
     def repaint_dirty_cells(self):
         rect = None
-        #top = self.base if not self.alternate_active else 0
         top = self.base
+        buf_size = self.get_buffer_size()
         bottom = top + self.height
-        for row in range(top, bottom): #range(self.base, self.base + self.height):
+        if bottom > buf_size:
+            bottom = buf_size
+        buf = self.get_buffer()
+        for row in range(top, bottom):
             for col in range(0, self.width):
                 try:
-                    buf = self.get_buffer()
                     cell = buf[row][col]
                     #if not self.alternate_active:
                     #    cell = self.buffer[row][col]
@@ -453,8 +455,47 @@ class ScreenBuffer:
             self.log.error("IndexError (%s,%s)" % (row, col))
             raise e
 
-    def scroll(self, times=1):
-        self.log.debug("screen scroll")
+    def scroll(self, direction=ScrollDirection.DOWN, times=1):
+        if direction == ScrollDirection.DOWN:
+            self.scroll_down(times)
+        elif direction == ScrollDirection.UP:
+            self.scroll_up(times)
+        else:
+            self.log.error("Unknown scroll direction")
+
+    def scroll_up(self, times=1):
+        if self.alternate_active:
+            scroll_top = self.get_scroll_top()
+            scroll_bottom = self.get_scroll_bottom()
+            buf = self.get_buffer()
+            first = scroll_top - 1
+            last = scroll_bottom - 1
+
+            rows = [TerminalRow(self.width, self) for x in range(0, times)]
+            del buf[last:last + times]
+            buf.insert(first, '')
+            buf[first:first + 1] = rows
+
+            repaint_buf = buf[first:last + 1]
+            for row in repaint_buf:
+                row.set_dirty()
+            return
+
+        self.base -= times
+        if self.base < 0:
+            self.base = 0
+        self.log.debug("Scrolling screen buffer, base = %s, row = %s" % \
+                       (self.base, self.cursor.row))
+            #self.log.debug("Scrollback exceeded...rolling over buffer.")
+            #self.base -= times
+            #for cnt in range(0, times):
+            #    row = self.buffer.pop(0)
+            #    row.reset()
+            #    self.buffer.append(row)
+        self.parent.set_dirty()
+        self.parent.set_scroll_value(self.base)
+
+    def scroll_down(self, times=1):
         if self.alternate_active:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
@@ -473,7 +514,8 @@ class ScreenBuffer:
             return
 
         self.base += times
-        self.log.debug("Scrolling screen buffer, base = %s, row = %s" % (self.base, self.cursor.row))
+        self.log.debug("Scrolling screen buffer, base = %s, row = %s" % \
+                       (self.base, self.cursor.row))
         if (self.base - times) >= self.scrollback:
             self.log.debug("Scrollback exceeded...rolling over buffer.")
             self.base -= times
@@ -505,11 +547,11 @@ class ScreenBuffer:
         (row, col) = self.cursor.get_row_col()
         times = row - self.base
         if self.base >= self.scrollback:
-            self.scroll(times)
+            self.scroll_down(times)
             self.log.debug("Setting cursor to (%s, %s)" % (row, col))
             self.cursor.set_row_col(self.base, col)
         else:
-            self.scroll(times)
+            self.scroll_down(times)
         self.parent.set_scroll_value(self.base)
 
     def get_base_row(self):
@@ -664,7 +706,7 @@ class TerminalWidget(QtGui.QWidget):
             (width, height) = self.screen.get_size()
             base = self.screen.base
             if row >= base + height:
-                self.screen.scroll(row - (base + height) + 1)
+                self.screen.scroll_down(row - (base + height) + 1)
 
     def mark_end_of_data(self):
         self.end_of_data_block = True

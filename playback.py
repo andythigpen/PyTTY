@@ -171,9 +171,12 @@ class XTermPlayback(QtGui.QWidget):
         while not found_escape:
             if not self._read_data():
                 return False
+            idx = 0
             try:
                 idx = self.term.write(self.data)
             except EncounteredEscapeException as e:
+                self.log.debug("previous idx = ", idx)
+                self.log.debug("self.data = ", self.data.replace('\x1b', '\\x1b'))
                 idx = e.index
                 self.log.debug("set idx to ", idx)
                 found_escape = True

@@ -18,7 +18,7 @@
 '''
 
 import terminal
-from sequencer import CSIEscapeSequence
+from c1control import CSIEscapeSequence
 
 class EraseInDisplayEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-3]*J'

@@ -18,7 +18,7 @@
 '''
 
 from PyQt4 import QtGui
-from sequencer import CSIEscapeSequence
+from c1control import CSIEscapeSequence
 
 class CharacterAttributeEscapeSequence(CSIEscapeSequence):
     MATCH = r'(?P<value>([0-9]+;*)+)*m'

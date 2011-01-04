@@ -17,7 +17,7 @@
     along with PyTTY.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from sequencer import CSIEscapeSequence
+from c1control import CSIEscapeSequence
 
 class DECPrivateModeSetEscapeSequence(CSIEscapeSequence):
     MATCH = r'\?(?P<value>([0-9]+;*)+)h'

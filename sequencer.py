@@ -22,9 +22,15 @@ import log
 from config import TerminalConfig
 from PyQt4 import QtGui, QtCore
 
+class ScrollDirection:
+    UP = 1
+    DOWN = 2
+
 class ScrollScreenException(Exception):
     '''Thrown when the terminal needs to scroll.'''
-    pass
+    def __init__(self, direction=ScrollDirection.DOWN):
+        Exception.__init__(self)
+        self.direction = direction
 
 class IncompleteEscapeException(Exception):
     '''Thrown when an incomplete escape sequence was received.'''
@@ -77,83 +83,7 @@ class EscapeSequence(object):
         self.log.warning("Process not implemented.")
 
 
-class CSIEscapeSequence(EscapeSequence):
-    MATCH = r'\x1b\['
-
-    def __init__(self, screen, channel):
-        EscapeSequence.__init__(self, screen, channel)
-        self.__sequences = {}
-        for subclass in self.__class__.__subclasses__():
-            inst = subclass(screen, channel)
-            last_ch = inst.MATCH[-1]
-            if not last_ch in self.__sequences:
-                self.__sequences[last_ch] = []
-            self.__sequences[last_ch].append(inst)
-
-    def process(self, data, match=None):
-        m = re.match("(?P<value>[^@-~]*)(?P<postfix>[@-~]{1})", data)
-        if not m:
-            raise IncompleteEscapeException()
-        postfix = m.group('postfix')
-        self.log.debug("CSI postfix: %s" % postfix)
-        if postfix in self.__sequences:
-            for seq in self.__sequences[postfix]:
-                seq_m = re.match(seq.MATCH, m.group(0))
-                if seq_m:
-                    self.log.debug("Processing CSI escape with: %s" % \
-                                   seq.__class__.__name__)
-                    try:
-                        seq.process(m.group('value'), match=seq_m)
-                    except TraceEndSequence:
-                        pass
-                    return len(m.group(0))
-        self.log.error("Did not find matching sequence for %s" % m.group(0))
-        raise UnsupportedEscapeException(m.end(), data[:m.end()])
-
-
-class OSCEscapeSequence(EscapeSequence):
-    MATCH = r'\x1b\]'
-
-    def process(self, data, match=None):
-        self.log.debug("OSC")
-        m = re.match(r"(?P<value>.*?)(\x07|\x1b\\)", data)
-        if not m:
-            raise IncompleteEscapeException()
-        value = m.group('value')
-        length = len(m.group(0))
-        if not value:
-            self.log.warning("Missing value for OSC escape: %s" % \
-                             value.replace('\x1b', '\\x1b'))
-            return length
-        options = value.split(';')
-        if len(options) != 2:
-            self.log.error("Unknown OSC sequence: ", 
-                           value.replace('\x1b', '\\x1b'))
-            return length
-        if options[0] == '0' or options[0] == '2':
-            self.log.debug("Setting window title to: %s" % options[1])
-            self.screen.set_window_title(options[1])
-        return length
-
-
-class DCSEscapeSequence(EscapeSequence):
-    MATCH = r'\x1bP'
-
-    def process(self, data, match=None):
-        self.log.debug("DCS")
-        m = re.match(r"(?P<value>.*?)(\x07|\x1b\\)", data)
-        if not m:
-            raise IncompleteEscapeException()
-        value = m.group('value')
-        length = len(m.group(0))
-        if not value:
-            self.log.warning("Missing value for OSC escape: %s" % \
-                             value.replace('\x1b', '\\x1b'))
-            return length
-        self.log.warning("DCS escape codes not implemented yet: %s" % \
-                         data[:m.end()].replace('\x1b', '\\x1b'))
-        return length
-
+import sequence
 
 class NormalKeypadEscapeSequence(EscapeSequence):
     MATCH = r'\x1b>'
@@ -161,8 +91,9 @@ class NormalKeypadEscapeSequence(EscapeSequence):
     def process(self, data, match=None):
         self.log.debug("Normal Keypad DECPNM")
         self.trace.end("Normal Keypad DECPNM")
+        #FIXME this should be setting keypad keys, not cursor keys...
         self.screen.set_cursor_keys(application=False)
-        return 2
+        return 0
 
 
 class ApplicationKeypadEscapeSequence(EscapeSequence):
@@ -171,11 +102,10 @@ class ApplicationKeypadEscapeSequence(EscapeSequence):
     def process(self, data, match=None):
         self.log.debug("Application Keypad DECPAM")
         self.trace.end("Application Keypad DECPAM")
+        #FIXME this should be setting keypad keys, not cursor keys...
         self.screen.set_cursor_keys(application=True)
-        return 2
+        return 0
 
-            
-import sequence
 
 class TerminalEscapeSequencer:
     def __init__(self, screen, channel):
@@ -281,8 +211,8 @@ class TerminalEscapeSequencer:
                 self.log.debug("LF")
                 try:
                     cursor.advance_row()
-                except ScrollScreenException:
-                    self.screen.scroll()
+                except ScrollScreenException as e:
+                    self.screen.scroll(e.direction)
                 continue
             elif ch == '\r':
                 self.log.debug("CR")
@@ -296,7 +226,7 @@ class TerminalEscapeSequencer:
                 continue
             try:
                 cursor.write(ch)
-            except ScrollScreenException:
-                self.screen.scroll()
+            except ScrollScreenException as e:
+                self.screen.scroll(e.direction)
         return idx
 

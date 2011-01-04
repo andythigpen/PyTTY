@@ -202,8 +202,8 @@ class PyttyPage(QtGui.QWidget):
         layout.addRow("&Password:", self.password_edit)
 
         # for debugging
-        #self.record_check = QtGui.QCheckBox()
-        #layout.addRow("Record:", self.record_check)
+        self.record_check = QtGui.QCheckBox()
+        layout.addRow("Record:", self.record_check)
 
         self.status_label = QtGui.QLabel("")
         layout.addRow(self.status_label)

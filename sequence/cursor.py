@@ -17,7 +17,7 @@
     along with PyTTY.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from sequencer import CSIEscapeSequence
+from c1control import CSIEscapeSequence
 
 class CursorUpEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-9]*A'

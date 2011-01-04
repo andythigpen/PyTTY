@@ -17,20 +17,19 @@
     along with PyTTY.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from c1control import CSIEscapeSequence
+import binascii
+from c1control import DCSEscapeSequence
 
-class ScrollingRegionEscapeSequence(CSIEscapeSequence):
-    MATCH = r'((?P<top>[0-9]+);(?P<bottom>[0-9]+))*r'
+class DCSRequestEscapeSequence(DCSEscapeSequence):
+    #MATCH = r'(?P<value>([0-9]+;*)+)*m'
+    MATCH = r'\+q(?P<one>[0-9a-fA-F]{2})(?P<two>[0-9a-fA-F]{2})'
 
     def process(self, data, match):
-        top = match.group('top') 
-        bottom = match.group('bottom')
-        self.trace.end("Set scrolling region (%s, %s)" % (top, bottom))
-        (width, height) = self.screen.get_size()
-        if top is None and bottom is None:
-            self.screen.set_buffer_scroll_range(0, height)
-        else:
-            self.screen.set_buffer_scroll_range(int(top), int(bottom))
-        cursor = self.screen.get_cursor()
-        cursor.reset_position()
+        terminfo = binascii.a2b_hex(match.group('one')) + \
+                   binascii.a2b_hex(match.group('two'))
+        self.__process_request(terminfo)
 
+    def __process_request(self, terminfo):
+        if terminfo == 'Co':
+            # colors
+            pass

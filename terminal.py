@@ -723,10 +723,8 @@ class TerminalWidget(QtGui.QWidget):
         #self.scroll_to(-1)
 
     def paintEvent(self, event):
-        pixmap = QtGui.QPixmap(self.width(), self.height())
-
         painter = QtGui.QPainter()
-        if not painter.begin(pixmap):
+        if not painter.begin(self):
             self.log.warning("paintEvent...Unable to paint widget!!!")
             return
         try:
@@ -736,10 +734,6 @@ class TerminalWidget(QtGui.QWidget):
         except:
             self.log.exception()
             self.screen.print_debug()
-        painter.end()
-
-        painter = QtGui.QPainter(self)
-        painter.drawPixmap(event.rect(), pixmap, event.rect())
         painter.end()
 
     def resizeEvent(self, event):

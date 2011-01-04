@@ -404,13 +404,15 @@ class ScreenBuffer:
 
     def repaint_dirty_cells(self):
         rect = None
-        #top = self.base if not self.alternate_active else 0
         top = self.base
         bottom = top + self.height
-        for row in range(top, bottom): #range(self.base, self.base + self.height):
+        buf_size = self.get_buffer_size()
+        if bottom > buf_size:
+            bottom = buf_size
+        buf = self.get_buffer()
+        for row in range(top, bottom):
             for col in range(0, self.width):
                 try:
-                    buf = self.get_buffer()
                     cell = buf[row][col]
                     #if not self.alternate_active:
                     #    cell = self.buffer[row][col]
@@ -473,16 +475,20 @@ class ScreenBuffer:
             return
 
         self.base += times
-        self.log.debug("Scrolling screen buffer, base = %s, row = %s" % (self.base, self.cursor.row))
+        self.log.debug("Scrolling screen buffer, base = %s, row = %s" % \
+                       (self.base, self.cursor.row))
         if (self.base - times) >= self.scrollback:
             self.log.debug("Scrollback exceeded...rolling over buffer.")
             self.base -= times
-            for cnt in range(0, times):
-                row = self.buffer.pop(0)
-                row.reset()
-                self.buffer.append(row)
-        self.parent.set_dirty()
+            del self.buffer[0:times]
+            rows = [TerminalRow(self.width, self) for x in range(0, times)]
+            self.buffer.extend(rows)
         self.parent.set_scroll_value(self.base)
+
+        scroll_top = self.get_scroll_top()
+        scroll_bottom = self.get_scroll_bottom()
+        for row in self.buffer[scroll_top:scroll_bottom]:
+            row.set_dirty()
 
     def set_buffer_scroll_range(self, top, bottom):
         '''Do not use this to set scroll ranges for the widget. 
@@ -510,7 +516,7 @@ class ScreenBuffer:
             self.cursor.set_row_col(self.base, col)
         else:
             self.scroll(times)
-        self.parent.set_scroll_value(self.base)
+        #self.parent.set_scroll_value(self.base)
 
     def get_base_row(self):
         #if self.alternate_active:
@@ -531,7 +537,11 @@ class ScreenBuffer:
         if self.alternate_active:
             if hasattr(self, "buffer_scroll_bottom"):
                 return self.buffer_scroll_bottom
-        return self.base + self.height
+        screen_bottom = self.base + self.height
+        buf_size = self.get_buffer_size()
+        if screen_bottom > buf_size:
+            return buf_size
+        return buf_size
 
     def get_scroll_top(self):
         if self.alternate_active:
@@ -758,9 +768,11 @@ class TerminalWidget(QtGui.QWidget):
         self.set_dirty()
 
     def set_scroll_value(self, maximum, value=None):
+        self.log.debug("Setting scroll range to (0, %s)" % maximum)
         self.scroll_bar.setRange(0, maximum)
         if value is None:
             value = maximum
+        self.log.debug("Setting scroll value to (%s)" % value)
         self.scroll_bar.setValue(value)
 
     def get_scroll_value(self):

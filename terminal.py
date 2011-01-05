@@ -695,7 +695,8 @@ class TerminalWidget(QtGui.QWidget):
 
     def event(self, event):
         if event.type() == QtCore.QEvent.KeyPress:
-            if event.key() == QtCore.Qt.Key_Tab:
+            if event.key() == QtCore.Qt.Key_Tab or \
+               event.key() == QtCore.Qt.Key_Backtab:
                 self.log.debug("Tab button pressed")
                 event.accept()
                 self.keyPressEvent(event)
@@ -812,6 +813,7 @@ class SSHConnection(TerminalChannel):
         self.client = paramiko.SSHClient()
         self.client.load_system_host_keys()
         self.client.set_missing_host_key_policy(paramiko.WarningPolicy())
+        self.config = TerminalConfig()
 
     def connect(self):
         try:
@@ -885,7 +887,8 @@ class SSHConnection(TerminalChannel):
             self.log.error("Trying to start shell, but not yet connected.")
             return
         self.log.debug("Starting connection thread")
-        self.channel = self.client.invoke_shell(term='xterm-256color')
+        term_name = self.config.get("Sequencer", "type", "xterm")
+        self.channel = self.client.invoke_shell(term=term_name)
         self.connection_thread = SSHConnection.SSHConnectionThread(self, 
                                                         self.channel, term)
         self.connection_thread.start()

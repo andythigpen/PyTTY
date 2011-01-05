@@ -314,14 +314,14 @@ class PyttyPage(QtGui.QWidget):
 
     def change_tab_title(self, title):
         sender = self.sender()
-        for idx in range(0, self.tabs.count()):
+        for idx in xrange(0, self.tabs.count()):
             if self.tabs.widget(idx) == sender:
                 self.tabs.setTabText(idx, title)
                 break
 
     def close_tab(self):
         sender = self.sender()
-        for idx in range(0, self.tabs.count()):
+        for idx in xrange(0, self.tabs.count()):
             widget = self.tabs.widget(idx)
             if widget == sender:
                 self.tabs.close_tab(idx)

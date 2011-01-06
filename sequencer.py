@@ -162,7 +162,7 @@ class NormalKeypadEscapeSequence(EscapeSequence):
         self.log.debug("Normal Keypad DECPNM")
         self.trace.end("Normal Keypad DECPNM")
         self.screen.set_cursor_keys(application=False)
-        return 2
+        return 0
 
 
 class ApplicationKeypadEscapeSequence(EscapeSequence):
@@ -172,7 +172,7 @@ class ApplicationKeypadEscapeSequence(EscapeSequence):
         self.log.debug("Application Keypad DECPAM")
         self.trace.end("Application Keypad DECPAM")
         self.screen.set_cursor_keys(application=True)
-        return 2
+        return 0
 
             
 import sequence
@@ -266,7 +266,10 @@ class TerminalEscapeSequencer:
             self.__previous_sequence = data
             idx = len(data)
         elif not processed:
-            raise UnsupportedEscapeException(len(data), data)
+            next_escape = data[1:].find('\x1b')
+            if next_escape < 0:
+                next_escape = len(data)
+            raise UnsupportedEscapeException(next_escape, data)
         return idx
 
     def _process_text(self, data):

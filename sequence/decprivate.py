@@ -35,9 +35,14 @@ class DECPrivateModeSetEscapeSequence(CSIEscapeSequence):
                 self.screen.blink_cursor(True)
             elif int(val) == 25:
                 self.screen.show_cursor(True)
+            elif int(val) == 1047:
+                self.screen.set_alternate_buffer(True)
+            elif int(val) == 1048:
+                self.screen.save_cursor()
             elif int(val) == 1049:
                 self.screen.save_cursor()
                 self.screen.set_alternate_buffer(True)
+                self.screen.clear_screen()
             else:
                 self.log.warning("Unknown DEC Private Mode Set value: %s" % \
                                  value)
@@ -59,6 +64,10 @@ class DECPrivateModeResetEscapeSequence(CSIEscapeSequence):
                 self.screen.blink_cursor(False)
             elif int(val) == 25:
                 self.screen.show_cursor(False)
+            elif int(val) == 1047:
+                self.screen.set_alternate_buffer(False)
+            elif int(val) == 1048:
+                self.screen.restore_cursor()
             elif int(val) == 1049:
                 self.screen.set_alternate_buffer(False)
                 self.screen.restore_cursor()

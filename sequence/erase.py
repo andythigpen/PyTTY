@@ -156,3 +156,19 @@ class DeleteLinesEscapeSequence(CSIEscapeSequence):
         self.screen.delete_row(lines)
 
 
+class EraseCharacterEscapeSequence(CSIEscapeSequence):
+    MATCH = r'[0-9]*X'
+
+    def process(self, data, match):
+        characters = 1
+        if data:
+            characters = int(data)
+        self.trace.end("Erase Character (ECH) [%s]" % characters)
+        cursor = self.screen.get_cursor()
+        (row, col) = cursor.get_row_col()
+        for cnt in xrange(0, characters):
+            cursor.reset_cell()
+            cursor.advance_column()
+        cursor.set_row_col(row, col)
+
+

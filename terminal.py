@@ -173,25 +173,26 @@ class TerminalRow(list):
     def reset(self):
         for cell in self:
             cell.reset()
-            cell.set_dirty(True)
+            cell.dirty = True
 
     def set_dirty(self, dirty=True):
-        for cell in self:
-            cell.set_dirty(dirty)
+        def inner(x):
+            x.dirty = dirty
+        map(inner, self)
                 
 
 class ScreenBuffer:
     def __init__(self, width=80, height=24, parent=None):
         self.log = log.get_log(self)
+        self.width = width      # in cells, not pixels
+        self.height = height
+        self.parent = parent
         self.config = TerminalConfig()
         self.font_name = self.config.get("Display", "font", "Consolas")
         self.font_size = self.config.getint("Display", "fontsize", 11)
         self.cursor = TerminalCursor(self, self.font_name, self.font_size)
-        self.width = width      # in cells, not pixels
-        self.height = height
         self.scrollback = self.config.getint("Display", "scrollback", 100)
         self.base = 0
-        self.parent = parent
         self.alternate_active = False
         self.create_buffer()
         self.create_alternate_buffer()
@@ -266,10 +267,7 @@ class ScreenBuffer:
         scroll_top = self.get_scroll_top()
         scroll_bottom = self.get_scroll_bottom()
         del buf[scroll_bottom:scroll_bottom + num]
-        
-        repaint_buf = buf[scroll_top - 1:scroll_bottom]
-        for row in repaint_buf:
-            row.set_dirty()
+        self.parent.update()
 
     def delete_row(self, num=1):
         buf = self.get_buffer()
@@ -282,8 +280,7 @@ class ScreenBuffer:
         new_rows = [TerminalRow(self.width, self) for x in xrange(0, num)]
         buf.insert(scroll_bottom, '')
         buf[scroll_bottom:scroll_bottom + 1] = new_rows
-        #TODO should this match insert row and only set specific rows dirty?
-        self.parent.set_dirty()
+        self.parent.update()
 
     def get_buffer(self):
         if self.alternate_active:
@@ -484,8 +481,7 @@ class ScreenBuffer:
             buf[last:last + 1] = rows
 
             repaint_buf = buf[first:last + 1]
-            for row in repaint_buf:
-                row.set_dirty()
+            self.parent.update()
             return
 
         self.base += times
@@ -501,8 +497,7 @@ class ScreenBuffer:
 
         scroll_top = self.get_scroll_top()
         scroll_bottom = self.get_scroll_bottom()
-        for row in self.buffer[scroll_top:scroll_bottom]:
-            row.set_dirty()
+        self.parent.update()
 
     def set_buffer_scroll_range(self, top, bottom):
         '''Do not use this to set scroll ranges for the widget. 
@@ -773,7 +768,7 @@ class TerminalWidget(QtGui.QWidget):
 
     def scrollEvent(self, value):
         self.screen.base = value
-        self.set_dirty()
+        self.update()
 
     def set_scroll_value(self, maximum, value=None):
         self.log.debug("Setting scroll range to (0, %s)" % maximum)

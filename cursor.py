@@ -31,6 +31,8 @@ class TerminalCursor:
         self.parent = parent
         self.set_font(font_name, font_size)
         self.reset_attributes()
+        if self.parent is not None:
+            self.widget = self.parent.get_widget()
 
     def set_font(self, name, size=10):
         self.font = QtGui.QFont(name, size)
@@ -78,10 +80,10 @@ class TerminalCursor:
     def reset_cell(self):
         cell = self.get_cell()
         cell.reset()
-        cell.set_dirty()
+        self.widget.update(self.position())
 
     def advance_column(self):
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.col += 1
         (width, height) = self.parent.get_size()
         if self.col >= width:
@@ -90,15 +92,15 @@ class TerminalCursor:
                 self.advance_row()
             else:
                 self.col = width - 1
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def advance_row(self, scroll=True, reset_col=True):
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.row += 1
         if reset_col:
             self.col = 0
-        #(width, height) = self.parent.get_size()
-        #base = self.parent.get_base_row()
         scroll_bottom = self.parent.get_scroll_bottom()
         self.log.debug("Advance row: scroll_bottom=%s, row=%s, scroll=%s" % \
                 (scroll_bottom, self.row, scroll))
@@ -107,77 +109,91 @@ class TerminalCursor:
             if self.row >= buffer_size:
                 self.row = buffer_size - 1
             raise ScrollScreenException()
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def up(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         if self.row == 0:
             return
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.row -= num
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def down(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         (width, height) = self.parent.get_size()
         base = self.parent.get_base_row()
         if self.row + num >= (base + height):
             self.row = (base + height) - 1
             return
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.row += num
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def left(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         if self.col == 0:
             return
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.col -= num
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def right(self, num=1):
-        #self.parent.show_cursor(True)
         self.parent.reset_blink_timer()
         (width, height) = self.parent.get_size()
         if self.col + num >= width:
             self.col = width - 1 
             return
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.col += num
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def set_row_col(self, row, col):
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.col = col
         self.row = row
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def get_row_col(self):
         return (self.row, self.col)
 
     def reset_position(self):
         if self.parent.is_alternate_buffer():
-            self.get_cell().set_dirty()
+            old_pos = self.position()
             self.row = 0
             self.col = 0
-            self.get_cell().set_dirty()
+            new_pos = self.position()
+            self.widget.update(old_pos)
+            self.widget.update(new_pos)
         else:
             times = self.row - self.parent.get_base_row()
             self.parent.scroll(times=times)
 
     def reset_col(self):
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.col = 0
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def reset_row(self):
-        self.get_cell().set_dirty()
+        old_pos = self.position()
         self.row = 0
-        self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
 
     def position(self):
         base = self.parent.get_base_row()
@@ -193,7 +209,7 @@ class TerminalCursor:
         cell.set_font(self.font)
         if self.inverse:
             cell.set_inverse()
-        cell.set_dirty()
+        self.widget.update(self.position())
         self.log.debug("Writing '%s' to (%s, %s)" % \
                         (ch, self.row, self.col))
         if advance:

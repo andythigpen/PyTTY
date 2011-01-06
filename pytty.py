@@ -409,5 +409,7 @@ if __name__ == "__main__":
     event_filter = PyttyEventFilter(widget.tabs)
     QtCore.QCoreApplication.instance().installEventFilter(event_filter)
     widget.show()
+    #import cProfile
+    #cProfile.run('app.exec_()', 'pytty.profile')
     sys.exit(app.exec_())
 

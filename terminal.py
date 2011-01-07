@@ -121,12 +121,10 @@ class TerminalRow(list):
         self.log = log.get_log(self)
         self.width = width
         self.screen = screen
-        self.__create_cells()
+        cells = [TerminalCell() for x in xrange(0, self.width)]
+        self.extend(cells)
 
-    def __create_cells(self):
-        for idx in range(0, self.width):
-            self.append(TerminalCell())
-
+    #FIXME optimize this function
     def expand(self, width):
         if width < len(self):
             # don't resize the row
@@ -134,14 +132,14 @@ class TerminalRow(list):
             return
         diff = width - len(self)
         #self.log.debug("Adding %s cells to row." % diff)
-        for cnt in range(0, diff):
+        for cnt in xrange(0, diff):
             self.append(TerminalCell())
         self.width = width
 
     def draw(self, painter, row):
         prev = self[0]
         rect = self.screen.create_rect_from_cell(row, 0)
-        for col in range(1, self.width):
+        for col in xrange(1, self.width):
             cell = self[col]
             if cell.background_matches(prev):
                 # merge the drawing of two cells
@@ -157,7 +155,7 @@ class TerminalRow(list):
         prev = self[0]
         rect = self.screen.create_rect_from_cell(row, 0)
         text = unicode(self[0])
-        for col in range(1, self.width):
+        for col in xrange(1, self.width):
             cell = self[col]
             if cell.foreground_matches(prev):
                 # merge the drawing of two cells
@@ -175,29 +173,31 @@ class TerminalRow(list):
     def reset(self):
         for cell in self:
             cell.reset()
-            cell.set_dirty(True)
+            cell.dirty = True
 
     def set_dirty(self, dirty=True):
-        for cell in self:
-            cell.set_dirty(dirty)
+        def inner(x):
+            x.dirty = dirty
+        map(inner, self)
                 
 
 class ScreenBuffer:
     def __init__(self, width=80, height=24, parent=None):
         self.log = log.get_log(self)
+        self.width = width      # in cells, not pixels
+        self.height = height
+        self.parent = parent
         self.config = TerminalConfig()
         self.font_name = self.config.get("Display", "font", "Consolas")
         self.font_size = self.config.getint("Display", "fontsize", 11)
         self.cursor = TerminalCursor(self, self.font_name, self.font_size)
-        self.width = width      # in cells, not pixels
-        self.height = height
         self.scrollback = self.config.getint("Display", "scrollback", 100)
         self.base = 0
-        self.parent = parent
         self.alternate_active = False
         self.create_buffer()
         self.create_alternate_buffer()
         self.setup_timer_events()
+        (self.col_size, self.row_size) = self.cursor.get_font_metrics()
 
     @staticmethod
     def get_default_size():
@@ -221,20 +221,20 @@ class ScreenBuffer:
             return
         self.draw_cursor = not self.draw_cursor
         position = self.cursor.position()
-        self.parent.repaint(position)
+        self.parent.update(position)
 
     def blink_cursor(self, blink=True):
         self.blink_cursor_active = blink
         self.draw_cursor = True
         position = self.cursor.position()
-        self.parent.repaint(position)
+        self.parent.update(position)
         self.reset_blink_timer()
 
     def show_cursor(self, show=True):
         self.blink_cursor_active = show
         self.draw_cursor = show
         position = self.cursor.position()
-        self.parent.repaint(position)
+        self.parent.update(position)
         self.reset_blink_timer()
 
     def reset_blink_timer(self):
@@ -245,20 +245,20 @@ class ScreenBuffer:
 
     def create_buffer(self):
         self.buffer = []
-        for row in range(0, self.height + self.scrollback):
+        for row in xrange(0, self.height + self.scrollback):
             self.buffer.append(TerminalRow(self.width, self))
         self.log.debug("Buffer size = %s" % len(self.buffer))
 
     def create_alternate_buffer(self):
         self.alternate = []
-        for row in range(0, self.height):
+        for row in xrange(0, self.height):
             self.alternate.append(TerminalRow(self.width, self))
         self.set_buffer_scroll_range(0, self.height)
 
     def insert_row(self, num=1):
         buf = self.get_buffer()
         (row, col) = self.cursor.get_row_col()
-        new_rows = [TerminalRow(self.width, self) for x in range(0, num)]
+        new_rows = [TerminalRow(self.width, self) for x in xrange(0, num)]
         buf.insert(row, '')
         buf[row:row + 1] = new_rows
         self.log.debug("Inserted %s row(s): %s" % (num, len(buf)))
@@ -267,10 +267,7 @@ class ScreenBuffer:
         scroll_top = self.get_scroll_top()
         scroll_bottom = self.get_scroll_bottom()
         del buf[scroll_bottom:scroll_bottom + num]
-        
-        repaint_buf = buf[scroll_top - 1:scroll_bottom]
-        for row in repaint_buf:
-            row.set_dirty()
+        self.parent.update()
 
     def delete_row(self, num=1):
         buf = self.get_buffer()
@@ -280,11 +277,10 @@ class ScreenBuffer:
 
         # insert new blank rows
         scroll_bottom = self.get_scroll_bottom() - num
-        new_rows = [TerminalRow(self.width, self) for x in range(0, num)]
+        new_rows = [TerminalRow(self.width, self) for x in xrange(0, num)]
         buf.insert(scroll_bottom, '')
         buf[scroll_bottom:scroll_bottom + 1] = new_rows
-        #TODO should this match insert row and only set specific rows dirty?
-        self.parent.set_dirty()
+        self.parent.update()
 
     def get_buffer(self):
         if self.alternate_active:
@@ -296,21 +292,49 @@ class ScreenBuffer:
 
     def resize(self, width, height):
         '''Width and height in cells, not pixels. May change this...'''
+        #FIXME creating new rows/cells when the height/width changes is
+        # very expensive...investigate other methods of resizing the buffers
+        # without having to create new objects each time...
         self.log.debug("Resizing screen to %s, %s" % (width, height))
         if height > self.height:
             diff = height - self.height
-            for cnt in range(0, diff):
-                self.buffer.append(TerminalRow(self.width, self))
+            for cnt in xrange(0, diff):
+                self.buffer.append(TerminalRow(width, self))
             self.log.debug("Resized buffer size = %s" % len(self.buffer))
 
         if width > self.width:
             self.log.debug("Increasing width of screen buffer to %s." % width)
-            for row in range(0, self.height + self.scrollback):
+            for row in xrange(0, height + self.scrollback):
                 self.buffer[row].expand(width)
+
+        if height < len(self.alternate):
+            diff = len(self.alternate) - height 
+            del self.alternate[-diff:]
+            self.log.debug("Deleted %s rows from alt buffer, len = %s" % \
+                              (diff, len(self.alternate)))
+        elif height > len(self.alternate):
+            diff = height - len(self.alternate)
+            for cnt in xrange(0, diff):
+                self.alternate.append(TerminalRow(width, self))
+            self.log.debug("Added %s rows to alt buffer, len = %s" % \
+                             (diff, len(self.alternate)))
+
+        if width < len(self.alternate[0]):
+            diff = len(self.alternate[0]) - width
+            for row in xrange(0, len(self.alternate)):
+                del self.alternate[row][-diff:]
+                self.alternate[row].width = width
+            self.log.debug("Deleted %s cols from alt buffer, len = %s" % \
+                              (diff, len(self.alternate[0])))
+        elif width > len(self.alternate[0]):
+            diff = width - len(self.alternate[0])
+            for row in xrange(0, len(self.alternate)):
+                self.alternate[row].expand(width)
+            self.log.debug("Added %s cols to alt buffer, len = %s" % \
+                             (diff, len(self.alternate[0])))
 
         self.width = width
         self.height = height
-        self.create_alternate_buffer()
 
     def get_cursor(self):
         return self.cursor
@@ -359,17 +383,9 @@ class ScreenBuffer:
         return (y, x, dy, dx)
 
     def create_rect_from_cell(self, row, col):
-        (col_size, row_size) = self.cursor.get_font_metrics()
-        #if not self.alternate_active:
-        #    top = (row - self.base) * row_size
-        #else:
-        #    top = row * row_size
-        top = (row - self.base) * row_size
-        left = col * col_size
-        return QtCore.QRect(left, top, col_size, row_size)
-
-    def repaint(self):
-        self.parent.repaint()
+        top = (row - self.base) * self.row_size
+        left = col * self.col_size
+        return QtCore.QRect(left, top, self.col_size, self.row_size)
 
     def draw(self, painter, event):
         (top, left, bottom, right) = self.get_cells_from_rect(event.rect())
@@ -407,24 +423,21 @@ class ScreenBuffer:
         top = self.base
         buf_size = self.get_buffer_size()
         bottom = top + self.height
+        buf_size = self.get_buffer_size()
         if bottom > buf_size:
             bottom = buf_size
         buf = self.get_buffer()
-        for row in range(top, bottom):
-            for col in range(0, self.width):
+        for row in xrange(top, bottom):
+            for col in xrange(0, self.width):
                 try:
                     cell = buf[row][col]
-                    #if not self.alternate_active:
-                    #    cell = self.buffer[row][col]
-                    #else:
-                    #    cell = self.alternate[row][col]
                 except:
                     self.log.exception()
                     self.log.error("row = %s, col = %s" % (row, col))
                     return
-                if not cell.is_dirty():
+                if not cell.dirty:
                     continue
-                cell.set_dirty(False)
+                cell.dirty = False
                 if rect is None:
                     rect = self.create_rect_from_cell(row, col)
                 else:
@@ -433,10 +446,10 @@ class ScreenBuffer:
                        ScreenBuffer.is_rect_adjacent(rect, new_rect):
                         rect = rect.unite(new_rect)
                     else:
-                        self.parent.repaint(rect)
+                        self.parent.update(rect)
                         rect = new_rect
         if rect is not None:
-            self.parent.repaint(rect)
+            self.parent.update(rect)
 
     def set_window_title(self, title):
         if self.parent is None:
@@ -467,20 +480,15 @@ class ScreenBuffer:
         if self.alternate_active:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
-            self.log.debug("scroll_top = %s, scroll_bottom = %s" % (scroll_top, scroll_bottom))
             buf = self.get_buffer()
             first = scroll_top
             last = scroll_bottom - 1
-            self.log.debug("first = %s, last = %s" % (first, last))
 
             rows = [TerminalRow(self.width, self) for x in range(0, times)]
             del buf[last:last + times]
             buf.insert(first, '')
             buf[first:first + 1] = rows
 
-            #repaint_buf = buf[first:last + 1]
-            #for row in repaint_buf:
-                #row.set_dirty()
             self.parent.update()
             return
 
@@ -489,13 +497,6 @@ class ScreenBuffer:
             self.base = 0
         self.log.debug("Scrolling screen buffer, base = %s, row = %s" % \
                        (self.base, self.cursor.row))
-            #self.log.debug("Scrollback exceeded...rolling over buffer.")
-            #self.base -= times
-            #for cnt in range(0, times):
-            #    row = self.buffer.pop(0)
-            #    row.reset()
-            #    self.buffer.append(row)
-        #self.parent.set_dirty()
         self.parent.update()
         self.parent.set_scroll_value(self.base)
 
@@ -507,14 +508,12 @@ class ScreenBuffer:
             first = scroll_top
             last = scroll_bottom - 1
 
-            rows = [TerminalRow(self.width, self) for x in range(0, times)]
+            rows = [TerminalRow(self.width, self) for x in xrange(0, times)]
             del buf[first:first + times]
             buf.insert(last, '')
             buf[last:last + 1] = rows
 
             repaint_buf = buf[first:last + 1]
-            #for row in repaint_buf:
-            #    row.set_dirty()
             self.parent.update()
             return
 
@@ -524,12 +523,11 @@ class ScreenBuffer:
         if (self.base - times) >= self.scrollback:
             self.log.debug("Scrollback exceeded...rolling over buffer.")
             self.base -= times
-            for cnt in range(0, times):
-                row = self.buffer.pop(0)
-                row.reset()
-                self.buffer.append(row)
-        self.parent.set_dirty()
+            del self.buffer[0:times]
+            rows = [TerminalRow(self.width, self) for x in xrange(0, times)]
+            self.buffer.extend(rows)
         self.parent.set_scroll_value(self.base)
+        self.parent.update()
 
     def set_buffer_scroll_range(self, top, bottom):
         '''Do not use this to set scroll ranges for the widget. 
@@ -546,7 +544,6 @@ class ScreenBuffer:
                 row.reset()
             return
         self.log.debug("Clear Screen")
-        #self.repaint()
         #self.scroll_bar.setRange(0, self.base)
         #self.scroll_bar.setValue(self.base)
         (row, col) = self.cursor.get_row_col()
@@ -557,7 +554,7 @@ class ScreenBuffer:
             self.cursor.set_row_col(self.base, col)
         else:
             self.scroll_down(times)
-        self.parent.set_scroll_value(self.base)
+        #self.parent.set_scroll_value(self.base)
 
     def get_base_row(self):
         #if self.alternate_active:
@@ -578,7 +575,11 @@ class ScreenBuffer:
         if self.alternate_active:
             if hasattr(self, "buffer_scroll_bottom"):
                 return self.buffer_scroll_bottom
-        return self.base + self.height
+        screen_bottom = self.base + self.height
+        buf_size = self.get_buffer_size()
+        if screen_bottom > buf_size:
+            return buf_size
+        return buf_size
 
     def get_scroll_top(self):
         if self.alternate_active:
@@ -598,7 +599,7 @@ class ScreenBuffer:
             del self.saved_scroll_values
             self.base = self.saved_base
             del self.saved_base
-        self.parent.repaint()
+        self.parent.update()
 
     def print_debug(self):
         # this is an expensive function, so we skip it if we are not logging 
@@ -608,9 +609,9 @@ class ScreenBuffer:
         debug = ""
         buff = self.buffer if not self.alternate_active else self.alternate
         bottom = len(buff)
-        for row in range(0, bottom):
+        for row in xrange(0, bottom):
             debug += u"%03d: " % row
-            for col in range(0, self.width):
+            for col in xrange(0, self.width):
                 debug += unicode(buff[row][col]) or u' '
             debug += u"\n"
         self.log.debug("Screen buffer contents:\n%s" % debug)
@@ -717,7 +718,7 @@ class TerminalWidget(QtGui.QWidget):
         self.end_of_data_block = True
         self.screen.blink_cursor()          # start blinking again
         if hasattr(self, 'dirty') and self.dirty:
-            self.repaint()
+            self.update()
             self.dirty = False
         else:
             self.screen.repaint_dirty_cells()
@@ -725,14 +726,15 @@ class TerminalWidget(QtGui.QWidget):
     def set_dirty(self):
         '''Means that the display needs to be completely repainted.'''
         if self.end_of_data_block:
-            self.repaint()
+            self.update()
             self.dirty = False
         else:
             self.dirty = True
 
     def event(self, event):
         if event.type() == QtCore.QEvent.KeyPress:
-            if event.key() == QtCore.Qt.Key_Tab:
+            if event.key() == QtCore.Qt.Key_Tab or \
+               event.key() == QtCore.Qt.Key_Backtab:
                 self.log.debug("Tab button pressed")
                 event.accept()
                 self.keyPressEvent(event)
@@ -760,10 +762,8 @@ class TerminalWidget(QtGui.QWidget):
         #self.scroll_to(-1)
 
     def paintEvent(self, event):
-        pixmap = QtGui.QPixmap(self.width(), self.height())
-
         painter = QtGui.QPainter()
-        if not painter.begin(pixmap):
+        if not painter.begin(self):
             self.log.warning("paintEvent...Unable to paint widget!!!")
             return
         try:
@@ -773,10 +773,6 @@ class TerminalWidget(QtGui.QWidget):
         except:
             self.log.exception()
             self.screen.print_debug()
-        painter.end()
-
-        painter = QtGui.QPainter(self)
-        painter.drawPixmap(event.rect(), pixmap, event.rect())
         painter.end()
 
     def resizeEvent(self, event):
@@ -795,19 +791,21 @@ class TerminalWidget(QtGui.QWidget):
         bottom = self.screen.base + rows
         if row >= bottom:
             self.screen.base += (row - bottom + 1)
+        self.update()
 
     def wheelEvent(self, event):
         self.scroll_bar.wheelEvent(event)
 
     def scrollEvent(self, value):
         self.screen.base = value
-        #self.repaint()
-        self.set_dirty()
+        self.update()
 
     def set_scroll_value(self, maximum, value=None):
+        self.log.debug("Setting scroll range to (0, %s)" % maximum)
         self.scroll_bar.setRange(0, maximum)
         if value is None:
             value = maximum
+        self.log.debug("Setting scroll value to (%s)" % value)
         self.scroll_bar.setValue(value)
 
     def get_scroll_value(self):
@@ -853,6 +851,7 @@ class SSHConnection(TerminalChannel):
         self.client = paramiko.SSHClient()
         self.client.load_system_host_keys()
         self.client.set_missing_host_key_policy(paramiko.WarningPolicy())
+        self.config = TerminalConfig()
 
     def connect(self):
         try:
@@ -926,7 +925,8 @@ class SSHConnection(TerminalChannel):
             self.log.error("Trying to start shell, but not yet connected.")
             return
         self.log.debug("Starting connection thread")
-        self.channel = self.client.invoke_shell(term='xterm-256color')
+        term_name = self.config.get("Sequencer", "type", "xterm")
+        self.channel = self.client.invoke_shell(term=term_name)
         self.connection_thread = SSHConnection.SSHConnectionThread(self, 
                                                         self.channel, term)
         self.connection_thread.start()

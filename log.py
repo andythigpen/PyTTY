@@ -242,11 +242,12 @@ class Log:
     get_log = staticmethod(get_log)
 
 def get_log(modulename):
-    if type(modulename) == types.ClassType:             # class type
+    module_type = type(modulename)
+    if module_type == types.ClassType:             # class type
         modulename = modulename.__name__
-    elif type(modulename) == types.InstanceType:        # old-style class
+    elif module_type == types.InstanceType:        # old-style class
         modulename = modulename.__class__.__name__
-    elif str(type(modulename)).startswith("<class '"):  # new-style class
+    elif str(module_type).startswith("<class '"):  # new-style class
         modulename = modulename.__class__.__name__
     else:
         modulename = str(modulename)                    # don't know...

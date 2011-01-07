@@ -69,10 +69,22 @@ class CursorPositionEscapeSequence(CSIEscapeSequence):
     def process(self, data, match=None):
         row = match.group('row') or 1
         col = match.group('col') or 1
-        self.trace.end("Cursor Position (CHA) (%s, %s)" % (row, col))
+        self.trace.end("Cursor Position (CUP) (%s, %s)" % (row, col))
         cursor = self.screen.get_cursor()
         if row == 1 and col == 1:
             cursor.reset_position()
         else:
             cursor.set_row_col(int(row) - 1, int(col) - 1)
+
+class CursorCharacterAbsoluteEscapeSequence(CSIEscapeSequence):
+    MATCH = r'[0-9]*G'
+
+    def process(self, data, match=None):
+        col = 1
+        if data:
+            col = int(data)
+        self.trace.end("Cursor Character Absolute (CHA) (%s)" % col)
+        cursor = self.screen.get_cursor()
+        (row, old_col) = cursor.get_row_col()
+        cursor.set_row_col(row, col - 1)
 

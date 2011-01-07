@@ -335,6 +335,8 @@ class ScreenBuffer:
 
         self.width = width
         self.height = height
+        self.buffer_scroll_top = 0
+        self.buffer_scroll_bottom = height
 
     def get_cursor(self):
         return self.cursor

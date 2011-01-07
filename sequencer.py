@@ -142,7 +142,7 @@ class TerminalEscapeSequencer:
                     idx += ee.index
 
     def process_until_escape(self, data):
-        data = unicode(data, encoding=self.encoding)
+        #data = unicode(data, encoding=self.encoding)
         prev_len = len(self.__previous_sequence)
         if self.__previous_sequence:
             data = self.__previous_sequence + data

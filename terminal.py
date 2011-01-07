@@ -467,18 +467,21 @@ class ScreenBuffer:
         if self.alternate_active:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
+            self.log.debug("scroll_top = %s, scroll_bottom = %s" % (scroll_top, scroll_bottom))
             buf = self.get_buffer()
-            first = scroll_top - 1
+            first = scroll_top
             last = scroll_bottom - 1
+            self.log.debug("first = %s, last = %s" % (first, last))
 
             rows = [TerminalRow(self.width, self) for x in range(0, times)]
             del buf[last:last + times]
             buf.insert(first, '')
             buf[first:first + 1] = rows
 
-            repaint_buf = buf[first:last + 1]
-            for row in repaint_buf:
-                row.set_dirty()
+            #repaint_buf = buf[first:last + 1]
+            #for row in repaint_buf:
+                #row.set_dirty()
+            self.parent.update()
             return
 
         self.base -= times
@@ -492,7 +495,8 @@ class ScreenBuffer:
             #    row = self.buffer.pop(0)
             #    row.reset()
             #    self.buffer.append(row)
-        self.parent.set_dirty()
+        #self.parent.set_dirty()
+        self.parent.update()
         self.parent.set_scroll_value(self.base)
 
     def scroll_down(self, times=1):
@@ -500,7 +504,7 @@ class ScreenBuffer:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
             buf = self.get_buffer()
-            first = scroll_top - 1
+            first = scroll_top
             last = scroll_bottom - 1
 
             rows = [TerminalRow(self.width, self) for x in range(0, times)]
@@ -509,8 +513,9 @@ class ScreenBuffer:
             buf[last:last + 1] = rows
 
             repaint_buf = buf[first:last + 1]
-            for row in repaint_buf:
-                row.set_dirty()
+            #for row in repaint_buf:
+            #    row.set_dirty()
+            self.parent.update()
             return
 
         self.base += times

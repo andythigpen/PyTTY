@@ -18,7 +18,7 @@
 '''
 
 import re
-from sequencer import EscapeSequence
+from sequencer import EscapeSequence, IncompleteEscapeException, UnsupportedEscapeException, TraceEndSequence, ScrollScreenException
 
 class CSIEscapeSequence(EscapeSequence):
     MATCH = r'\x1b\['
@@ -116,7 +116,10 @@ class ReverseIndexEscapeSequence(EscapeSequence):
     def process(self, data, match=None):
         self.log.debug("Reverse index")
         cursor = self.screen.get_cursor()
-        cursor.previous_row()
+        try:
+            cursor.previous_row()
+        except ScrollScreenException as e:
+            self.screen.scroll(e.direction)
         return 0
 
 

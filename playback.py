@@ -142,6 +142,7 @@ class XTermPlayback(QtGui.QWidget):
         self.dump_button.setEnabled(True)
         self.clear_button.setEnabled(True)
         self.data = ""
+        self.ascii_data = ""
         self.clear()
         try:
             self.next_sequence()
@@ -155,7 +156,8 @@ class XTermPlayback(QtGui.QWidget):
                 self.log.warning("End of file")
                 self.trace.info("End of file")
                 return False
-            self.data = data
+            self.data = unicode(data, encoding='utf-8')
+            self.ascii_data = data
         return True
 
     def next_sequence_pressed(self, checked=False):
@@ -185,7 +187,8 @@ class XTermPlayback(QtGui.QWidget):
                 self.trace.info(str(e))
                 found_escape = True
                 raise e
-            sys.stdout.write(self.data[:idx])
+            sys.stdout.write(self.ascii_data[:idx])
+            #sys.stdout.write(self.data[:idx])
             sys.stdout.flush()
             try:
                 output = sys.stdin.read()
@@ -194,6 +197,7 @@ class XTermPlayback(QtGui.QWidget):
             if output:
                 self.log.warning("xterm replied: %s" % output)
             self.data = self.data[idx:]
+            self.ascii_data = self.ascii_data[idx:]
             self.log.debug("self.data = ", self.data.replace('\x1b', '\\x1b'))
             self.log.debug("idx = ", idx)
         if repaint:
@@ -239,6 +243,7 @@ class XTermPlayback(QtGui.QWidget):
         self.log.debug("Found breakpoint at %s, data = %s" % (idx, 
                         self.data.replace('\x1b', '\\x1b')))
         self.data = self.data[idx + len("\x1b\x1f"):]
+        self.ascii_data = self.ascii_data[idx + len("\x1b\x1f"):]
 
 
 if __name__ == "__main__":

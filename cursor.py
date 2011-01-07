@@ -81,16 +81,24 @@ class TerminalCursor:
         cell.set_dirty()
 
     def previous_row(self, scroll=True, reset_col=False):
-        self.get_cell().set_dirty()
+        #self.get_cell().set_dirty()
+        old_pos = self.position()
         self.row -= 1
-        if self.row < 0:
-            self.row = 0
+        #if self.row < 0:
+            #self.row = 0
         if reset_col:
             self.col = 0
-        scroll_top = self.parent.get_scroll_top() - 1
+        scroll_top = self.parent.get_scroll_top()
         if scroll and self.row < scroll_top:
+            if self.row < 0:
+                self.row = 0
             raise ScrollScreenException(direction=ScrollDirection.UP)
-        self.get_cell().set_dirty()
+        if self.row < 0:
+            self.row = 0
+        #self.get_cell().set_dirty()
+        new_pos = self.position()
+        self.parent.get_widget().update(old_pos)
+        self.parent.get_widget().update(new_pos)
 
     def advance_column(self):
         self.get_cell().set_dirty()

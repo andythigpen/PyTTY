@@ -23,7 +23,7 @@ from config import TerminalConfig
 from PyQt4 import QtGui, QtCore
 
 class ScrollDirection:
-    UP = 1
+    UP   = 1
     DOWN = 2
 
 class ScrollScreenException(Exception):
@@ -206,9 +206,7 @@ class TerminalEscapeSequencer:
         self.log.debug("TXT")
         cursor = self.screen.get_cursor()
         idx = 0
-        #for ch in data:
-        while idx < len(data):
-            ch = data[idx]
+        for ch in data:
             idx += 1
             if ch == '\x1b':
                 raise EncounteredEscapeException(idx - 1)

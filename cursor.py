@@ -98,11 +98,8 @@ class TerminalCursor:
         self.widget.update(new_pos)
 
     def previous_row(self, scroll=True, reset_col=False):
-        #self.get_cell().set_dirty()
         old_pos = self.position()
         self.row -= 1
-        #if self.row < 0:
-            #self.row = 0
         if reset_col:
             self.col = 0
         scroll_top = self.parent.get_scroll_top()
@@ -112,7 +109,6 @@ class TerminalCursor:
             raise ScrollScreenException(direction=ScrollDirection.UP)
         if self.row < 0:
             self.row = 0
-        #self.get_cell().set_dirty()
         new_pos = self.position()
         self.parent.get_widget().update(old_pos)
         self.parent.get_widget().update(new_pos)
@@ -236,14 +232,6 @@ class TerminalCursor:
                             (self.row - base) * self.row_size,
                             self.col_size, self.row_size)
 
-    #def set_eol(self):
-    #    (width, height) = self.parent.get_size()
-    #    self.log.warning("Set eol (%s, %s) (%s, %s)" % (self.row, self.col, 
-    #                self.col, width))
-    #    for idx in xrange(self.col, width):
-    #        cell = self.parent.get_cell(self.row, idx)
-    #        cell.set_eol(eol=True)
- 
     def write(self, ch, advance=True):
         cell = self.get_cell() 
         cell.set_fgcolor(self.fgcolor)
@@ -253,6 +241,9 @@ class TerminalCursor:
         if self.inverse:
             cell.set_inverse()
         self.widget.update(self.position())
+        if cell.selected:
+            self.parent.clear_selection()
+            cell.toggle_selection()
         self.log.debug("Writing '%s' to (%s, %s)" % \
                         (ch, self.row, self.col))
         if advance:

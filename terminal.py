@@ -367,17 +367,13 @@ class ScreenBuffer:
         return (self.width, self.height)
 
     def get_pixel_size(self):
-        #(col_size, row_size) = self.cursor.get_font_metrics()
         return (self.width * self.col_size, self.height * self.row_size)
 
     def get_cells_from_rect(self, rect):
         (top, left) = (rect.top(), rect.left())
         (bottom, right) = (rect.bottom(), rect.right())
-        #(col_size, row_size) = self.cursor.get_font_metrics()
         x = left / self.col_size
         y = (top / self.row_size)
-        #if not self.alternate_active:
-        #    y += self.base
         y += self.base
         dx = (right / self.col_size) + 1
         dy = (bottom / self.row_size) + 1
@@ -385,10 +381,6 @@ class ScreenBuffer:
         buf = self.get_buffer()
         if dy > len(buf):
             dy = len(buf)
-        #if not self.alternate_active:
-        #    dy += self.base
-        #    if dy > (self.height + self.scrollback):
-        #        dy = self.height + self.scrollback
         return (y, x, dy, dx)
 
     def get_cell_from_point(self, point):
@@ -408,17 +400,12 @@ class ScreenBuffer:
 
     def draw(self, painter, event):
         (top, left, bottom, right) = self.get_cells_from_rect(event.rect())
-        self.log.none("height = ", self.height, ", scrollback = ", self.scrollback)
         self.log.debug("Redrawing (%s,%s) to (%s,%s)" % (top, left, 
                                                          bottom, right))
         row_range = range(top, bottom)
         row_range.reverse()
+        buf = self.get_buffer()
         for row in row_range:
-            #if not self.alternate_active:
-            #    self.buffer[row].draw(painter, row)
-            #else:
-            #    self.alternate[row].draw(painter, row)
-            buf = self.get_buffer()
             buf[row].draw(painter, row)
 
         cursor_pos = self.cursor.position()
@@ -477,9 +464,6 @@ class ScreenBuffer:
 
     def get_cell(self, row, col):
         '''Retrieves a TerminalCell object from this screen buffer.'''
-        #if not self.alternate_active:
-        #    return self.buffer[row][col]
-        #return self.alternate[row][col]
         buf = self.get_buffer()
         try:
             return buf[row][col]
@@ -576,9 +560,6 @@ class ScreenBuffer:
         #self.parent.set_scroll_value(self.base)
 
     def get_base_row(self):
-        #if self.alternate_active:
-        #    #self.log.warning("Getting base row of alternate buffer!!!")
-        #    return 0
         return self.base
 
     def get_buffer_size(self):
@@ -588,9 +569,6 @@ class ScreenBuffer:
         return self.height + self.scrollback
 
     def get_scroll_bottom(self):
-        #if self.alternate_active:
-        #    return self.height
-        #return self.height + self.scrollback
         if self.alternate_active:
             if hasattr(self, "buffer_scroll_bottom"):
                 return self.buffer_scroll_bottom
@@ -698,8 +676,6 @@ class ScreenBuffer:
     def set_selection_to_cell(self, top, left):
         if not hasattr(self, 'selection_start'):
             return
-        #self.log.warning("set to cell (%s, %s)" % (top, left))
-        #self.log.warning("selection start (%s, %s)" % self.selection_start)
         (row, col) = self.cursor.get_row_col()
         self.cursor.set_row_col(*self.selection_start)
         while self.cursor.get_row_col() != (top, left):
@@ -707,7 +683,6 @@ class ScreenBuffer:
             if not cell.selected:
                 cell.toggle_selection()
                 self.parent.update(self.cursor.position())
-            #self.log.warning("sstc (%s,%s)" % self.cursor.get_row_col())
             if (top == self.selection_start[0] and \
                left >= self.selection_start[1]) or \
                top > self.selection_start[0]:
@@ -733,58 +708,6 @@ class ScreenBuffer:
                 text += '\n'
         return text
 
-    '''def find_word(self, top, left):
-        word_separators = [' ', ':', '.', ',', '[', ']', '(', ')', '<', 
-                           '>', '!', '`']
-        #(row, col) = self.cursor.get_row_col()
-        self.cursor.save_row_col()
-        self.cursor.set_row_col(top, left)
-        cell = self.cursor.get_cell()
-        first = (top, left)
-        last = (top, left)
-        asdf = ''
-        buf = self.get_buffer()
-        for idx in xrange(self.base, self.base + self.height):
-            for jdx in xrange(0, self.width):
-                asdf += '0' if not buf[idx][jdx].eol else '1'
-        #self.log.warning("\nEOL:\n%s\n" % asdf)
-        self.log.warning("top = %s left =%s" % (top, left))
-        if cell.ch not in word_separators:
-            while first >= (self.base, 0):
-                self.cursor.previous_column(scroll=False)
-                cell = self.cursor.get_cell()
-                #self.log.warning('first cell = %s %s' % (cell.ch, 
-                #            self.cursor.get_row_col()))
-                first = self.cursor.get_row_col()
-                if first == (0, 0):
-                    break
-                if cell.ch in word_separators: 
-                    #first = self.cursor.get_row_col()
-                    if first[1] != self.width:
-                        first = (first[0], first[1] + 1)
-                    if first[1] >= self.width:
-                        first = (first[0] + 1, 0)
-                    break
-            self.cursor.set_row_col(top, left)
-            while last < (self.base + self.height, self.width):
-                self.cursor.advance_column(scroll=False)
-                cell = self.cursor.get_cell()
-                #self.log.warning('last cell = %s %s' % (cell.ch,
-                #        self.cursor.get_row_col()))
-                last = self.cursor.get_row_col()
-                #if cell.eol:
-                #    last = (last[0], self.width - 1)
-                #    break
-                if last == (self.height - 1, self.width - 1):
-                    break
-                if not cell.eol or cell.ch in word_separators:
-                    if last[1] != 0:
-                        last = (last[0], last[1] - 1)
-                    break
-        self.log.warning("first = %s last = %s" % (first, last))
-        self.cursor.restore_row_col()
-        return (first, last)
-                    '''
     def find_word(self, top, left):
         word_separators = [' ', ':', '.', ',', '[', ']', '(', ')', '<', 
                            '>', '!', '`']
@@ -821,11 +744,6 @@ class ScreenBuffer:
                     col += 1
             if is_eol:
                 break
-        #if col >= self.width:
-        #    col = 0
-        #    row += 1
-        #if row < 0:
-        #    row = 0
         first = (row, col)
 
         (row, col) = (top, left)
@@ -844,10 +762,6 @@ class ScreenBuffer:
                 cell = self.get_cell(row, col)
             if not cell.has_data:
                 break
-        #if col < 0:
-        #    col = 0
-        #if row > self.base + self.height - 1:
-        #    row = self.base + self.height - 1
         last = (row, col)
         return (first, last)
 

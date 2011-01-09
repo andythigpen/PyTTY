@@ -907,7 +907,8 @@ class TerminalWidget(QtGui.QWidget):
             (top, left) = self.screen.get_cell_from_point(start)
             cell = self.screen.get_cell(top, left)
             if not cell.has_data or self.word_select_mode:
-                (top, left) = self.screen.find_word(top, left)[0]
+                num = 1 if diff.y() > 0 else 0
+                (top, left) = self.screen.find_word(top, left)[num]
             self.screen.set_selection_start(top, left)
         (top, left) = self.screen.get_cell_from_point(event.pos())
         cell = self.screen.get_cell(top, left)

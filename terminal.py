@@ -30,7 +30,7 @@ from sequencer import TerminalEscapeSequencer, ScrollDirection
 
 class TerminalCell:
     def __init__(self):
-        self.log = log.get_log(self)
+        #self.log = log.get_log(self)
         self.config = TerminalConfig()
         font_name = self.config.get("Display", "font", "Consolas")
         font_size = self.config.getint("Display", "fontsize", 11)
@@ -125,7 +125,7 @@ class TerminalCell:
 class TerminalRow(list):
     def __init__(self, width, screen):
         list.__init__(self)
-        self.log = log.get_log(self)
+        #self.log = log.get_log(self)
         self.width = width
         self.screen = screen
         cells = [TerminalCell() for x in xrange(0, self.width)]
@@ -937,22 +937,26 @@ class TerminalWidget(QtGui.QWidget):
         painter.end()
 
     def resizeEvent(self, event):
-        self.scroll_bar.resize(self.scroll_bar_width, self.height())
-        self.scroll_bar.move(self.width() - self.scroll_bar.width(),
-                             self.height() - self.scroll_bar.height())
+        width = self.width()
+        height = self.height()
+        scroll_bar_width = self.scroll_bar.width()
+        scroll_bar_height = self.scroll_bar.height()
+        self.scroll_bar.resize(self.scroll_bar_width, height)
+        self.scroll_bar.move(width - scroll_bar_width, 0)
         self.scroll_bar.setRange(0, self.screen.base) 
-        cursor = self.screen.get_cursor()
-        (col_size, row_size) = cursor.get_font_metrics()
-        cols = (self.width() - self.scroll_bar.width()) / col_size
-        rows = self.height() / row_size
-        self.log.debug("Resizing to (%s, %s)" % (rows, cols))
+
+        cols = (width - scroll_bar_width) / self.col_size
+        rows = height / self.row_size
+        #self.log.debug("Resizing to (%s, %s)" % (rows, cols))
         self.screen.resize(cols, rows)
         self.channel.resize(cols, rows)
+
+        cursor = self.screen.get_cursor()
         (row, col) = cursor.get_row_col()
         bottom = self.screen.base + rows
         if row >= bottom:
             self.screen.base += (row - bottom + 1)
-        self.update()
+        #self.update()
 
     def wheelEvent(self, event):
         self.scroll_bar.wheelEvent(event)

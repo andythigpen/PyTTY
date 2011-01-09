@@ -952,9 +952,8 @@ class TerminalWidget(QtGui.QWidget):
     def resizeEvent(self, event):
         width = self.width()
         height = self.height()
-        scroll_bar_width = self.scroll_bar.width()
-        scroll_bar_height = self.scroll_bar.height()
         self.scroll_bar.resize(self.scroll_bar_width, height)
+        scroll_bar_width = self.scroll_bar.width()
         self.scroll_bar.move(width - scroll_bar_width, 0)
         self.scroll_bar.setRange(0, self.screen.base) 
 

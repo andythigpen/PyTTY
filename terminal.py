@@ -77,6 +77,8 @@ class TerminalCell:
         self.font.setBold(False)
         self.underline = False
         self.dirty = False
+        self.selected = False
+        self.has_data = False
 
     def set_font(self, font):
         self.font = QtGui.QFont(font)
@@ -104,6 +106,7 @@ class TerminalCell:
 
     def set_character(self, ch):
         self.ch = ch
+        self.has_data = True
 
     def get_character(self):
         return self.ch
@@ -113,6 +116,10 @@ class TerminalCell:
 
     def is_dirty(self):
         return self.dirty
+
+    def toggle_selection(self):
+        self.selected = not self.selected
+        self.set_inverse()
 
 
 class TerminalRow(list):
@@ -360,20 +367,20 @@ class ScreenBuffer:
         return (self.width, self.height)
 
     def get_pixel_size(self):
-        (col_size, row_size) = self.cursor.get_font_metrics()
-        return (self.width * col_size, self.height * row_size)
+        #(col_size, row_size) = self.cursor.get_font_metrics()
+        return (self.width * self.col_size, self.height * self.row_size)
 
     def get_cells_from_rect(self, rect):
         (top, left) = (rect.top(), rect.left())
         (bottom, right) = (rect.bottom(), rect.right())
-        (col_size, row_size) = self.cursor.get_font_metrics()
-        x = left / col_size
-        y = (top / row_size)
+        #(col_size, row_size) = self.cursor.get_font_metrics()
+        x = left / self.col_size
+        y = (top / self.row_size)
         #if not self.alternate_active:
         #    y += self.base
         y += self.base
-        dx = (right / col_size) + 1
-        dy = (bottom / row_size) + 1
+        dx = (right / self.col_size) + 1
+        dy = (bottom / self.row_size) + 1
         dy += self.base
         buf = self.get_buffer()
         if dy > len(buf):
@@ -383,6 +390,16 @@ class ScreenBuffer:
         #    if dy > (self.height + self.scrollback):
         #        dy = self.height + self.scrollback
         return (y, x, dy, dx)
+
+    def get_cell_from_point(self, point):
+        x = point.x()
+        y = point.y()
+        ret = (self.base + int(y / self.row_size), int(x / self.col_size))
+        if ret[0] < 0:
+            ret = (0, ret[1])
+        if ret[1] < 0:
+            ret = (ret[0], 0)
+        return ret
 
     def create_rect_from_cell(self, row, col):
         top = (row - self.base) * self.row_size
@@ -657,7 +674,183 @@ class ScreenBuffer:
         elif event.key() == QtCore.Qt.Key_End:
             return '\x1bOF'
         return False
- 
+
+    def clear_selection(self):
+        if hasattr(self, 'selection_start'):
+            del self.selection_start
+        buf = self.get_buffer()
+        for row in xrange(0, len(buf)):
+            for col in xrange(0, len(buf[row])):
+                cell = buf[row][col]
+                if cell.selected:
+                    cell.toggle_selection()
+                    rect = self.create_rect_from_cell(row, col)
+                    self.parent.update(rect)
+
+    def set_selection_start(self, top, left):
+        self.clear_selection()
+        cell = self.get_cell(top, left)
+        cell.toggle_selection()
+        rect = self.create_rect_from_cell(top, left)
+        self.parent.update(rect)
+        self.selection_start = (top, left)
+
+    def set_selection_to_cell(self, top, left):
+        if not hasattr(self, 'selection_start'):
+            return
+        #self.log.warning("set to cell (%s, %s)" % (top, left))
+        #self.log.warning("selection start (%s, %s)" % self.selection_start)
+        (row, col) = self.cursor.get_row_col()
+        self.cursor.set_row_col(*self.selection_start)
+        while self.cursor.get_row_col() != (top, left):
+            cell = self.cursor.get_cell()
+            if not cell.selected:
+                cell.toggle_selection()
+                self.parent.update(self.cursor.position())
+            #self.log.warning("sstc (%s,%s)" % self.cursor.get_row_col())
+            if (top == self.selection_start[0] and \
+               left >= self.selection_start[1]) or \
+               top > self.selection_start[0]:
+                self.cursor.advance_column(scroll=False)
+            else:
+                self.cursor.previous_column(scroll=False)
+        cell = self.cursor.get_cell()
+        if not cell.selected:
+            cell.toggle_selection()
+            self.parent.update(self.cursor.position())
+        self.cursor.set_row_col(row, col)
+
+    def get_selection_text(self):
+        text = ""
+        buf = self.get_buffer()
+        cell = None
+        for row in xrange(0, len(buf)):
+            for col in xrange(0, len(buf[row])):
+                cell = buf[row][col]
+                if cell.selected:
+                    text += cell.ch
+            if cell and cell.selected and not cell.has_data:
+                text += '\n'
+        return text
+
+    '''def find_word(self, top, left):
+        word_separators = [' ', ':', '.', ',', '[', ']', '(', ')', '<', 
+                           '>', '!', '`']
+        #(row, col) = self.cursor.get_row_col()
+        self.cursor.save_row_col()
+        self.cursor.set_row_col(top, left)
+        cell = self.cursor.get_cell()
+        first = (top, left)
+        last = (top, left)
+        asdf = ''
+        buf = self.get_buffer()
+        for idx in xrange(self.base, self.base + self.height):
+            for jdx in xrange(0, self.width):
+                asdf += '0' if not buf[idx][jdx].eol else '1'
+        #self.log.warning("\nEOL:\n%s\n" % asdf)
+        self.log.warning("top = %s left =%s" % (top, left))
+        if cell.ch not in word_separators:
+            while first >= (self.base, 0):
+                self.cursor.previous_column(scroll=False)
+                cell = self.cursor.get_cell()
+                #self.log.warning('first cell = %s %s' % (cell.ch, 
+                #            self.cursor.get_row_col()))
+                first = self.cursor.get_row_col()
+                if first == (0, 0):
+                    break
+                if cell.ch in word_separators: 
+                    #first = self.cursor.get_row_col()
+                    if first[1] != self.width:
+                        first = (first[0], first[1] + 1)
+                    if first[1] >= self.width:
+                        first = (first[0] + 1, 0)
+                    break
+            self.cursor.set_row_col(top, left)
+            while last < (self.base + self.height, self.width):
+                self.cursor.advance_column(scroll=False)
+                cell = self.cursor.get_cell()
+                #self.log.warning('last cell = %s %s' % (cell.ch,
+                #        self.cursor.get_row_col()))
+                last = self.cursor.get_row_col()
+                #if cell.eol:
+                #    last = (last[0], self.width - 1)
+                #    break
+                if last == (self.height - 1, self.width - 1):
+                    break
+                if not cell.eol or cell.ch in word_separators:
+                    if last[1] != 0:
+                        last = (last[0], last[1] - 1)
+                    break
+        self.log.warning("first = %s last = %s" % (first, last))
+        self.cursor.restore_row_col()
+        return (first, last)
+                    '''
+    def find_word(self, top, left):
+        word_separators = [' ', ':', '.', ',', '[', ']', '(', ')', '<', 
+                           '>', '!', '`']
+        cell = self.get_cell(top, left)
+        first = (top, left)
+        last = (top, left)
+        if cell.ch in word_separators:
+            return (first, last)
+
+        (row, col) = (top, left)
+        is_eol = not self.get_cell(row, col).has_data
+        while first > (self.base, 0):
+            col -= 1
+            if col < 0:
+                col = self.width - 1
+                row -= 1
+            if row < self.base:
+                row = self.base
+                col = 0
+                break
+            cell = self.get_cell(row, col)
+            if not is_eol and not cell.has_data:
+                col = 0
+                row += 1
+                break
+            if cell.ch in word_separators:
+                col += 1
+                break
+            while not cell.has_data and col > 0:
+                is_eol = True
+                col -= 1
+                cell = self.get_cell(row, col)
+                if cell.has_data:
+                    col += 1
+            if is_eol:
+                break
+        #if col >= self.width:
+        #    col = 0
+        #    row += 1
+        #if row < 0:
+        #    row = 0
+        first = (row, col)
+
+        (row, col) = (top, left)
+        is_eol = not self.get_cell(row, col).has_data
+        while last < (self.base + self.height - 1, self.width - 1):
+            col += 1
+            cell = self.get_cell(row, col)
+            if cell.ch in word_separators:
+                col -= 1
+                break
+            if not cell.has_data and not is_eol:
+                col -= 1
+                break
+            while not cell.has_data and col < self.width - 1:
+                col += 1
+                cell = self.get_cell(row, col)
+            if not cell.has_data:
+                break
+        #if col < 0:
+        #    col = 0
+        #if row > self.base + self.height - 1:
+        #    row = self.base + self.height - 1
+        last = (row, col)
+        return (first, last)
+
 
 class TerminalWidget(QtGui.QWidget):
     DEBUG_MARK = 1
@@ -687,6 +880,12 @@ class TerminalWidget(QtGui.QWidget):
         self.channel.endOfFile.connect(self.close)
         self.sequencer = TerminalEscapeSequencer(self.screen, self.channel)
         self.dirty = False
+        cursor = self.screen.get_cursor()
+        (self.col_size, self.row_size) = cursor.get_font_metrics()
+        self.setCursor(QtCore.Qt.IBeamCursor)
+        self.clipboard = QtGui.QApplication.clipboard()
+        self.clipboard.dataChanged.connect(self.clipboard_changed)
+        self.word_select_mode = False
 
     @staticmethod
     def get_default_size():
@@ -703,9 +902,9 @@ class TerminalWidget(QtGui.QWidget):
 
     def write(self, data):
         self.end_of_data_block = False
-        self.sequencer.process(data)
         if hasattr(self, "recorder"):
             self.recorder.write(data)
+        self.sequencer.process(data)
         self.screen.repaint_dirty_cells()
 
         if self.focus_on_output:
@@ -757,11 +956,56 @@ class TerminalWidget(QtGui.QWidget):
         elif event.key() == QtCore.Qt.Key_F8:   # insert a breakpoint
             if hasattr(self, "recorder"):
                 self.recorder.write('\x1b\x1F')
+        elif event.key() == QtCore.Qt.Key_V and \
+             event.modifiers() == (QtCore.Qt.ShiftModifier | \
+                                   QtCore.Qt.ControlModifier):
+            self.log.warning("paste")
+            self.channel.send_keypress(str(self.clipboard.text()))
         else:
             self.log.debug("Keypress: %s" % event.text())
             self.channel.send_keypress(event.text())
         self.screen.blink_cursor(False)     # stop blinking while keypress
         #self.scroll_to(-1)
+
+    def mousePressEvent(self, event):
+        self.mouse_selection_start = event.pos()
+        self.screen.clear_selection()
+
+    def mouseReleaseEvent(self, event):
+        if self.mouse_selection_start != event.pos():
+            self.clipboard.setText(self.screen.get_selection_text())
+        self.word_select_mode = False
+
+    def mouseDoubleClickEvent(self, event):
+        self.mouse_select_start = event.pos()
+        (top, left) = self.screen.get_cell_from_point(event.pos())
+        (first, last) = self.screen.find_word(top, left)
+        self.screen.set_selection_start(*first)
+        self.screen.set_selection_to_cell(*last)
+        self.clipboard.setText(self.screen.get_selection_text())
+        self.word_select_mode = True
+
+    def mouseMoveEvent(self, event):
+        start = self.mouse_selection_start
+        diff = start - event.pos()
+        if abs(diff.x()) >= (self.col_size / 2) or \
+           abs(diff.y()) >= (self.row_size / 2): 
+            (top, left) = self.screen.get_cell_from_point(start)
+            cell = self.screen.get_cell(top, left)
+            if not cell.has_data or self.word_select_mode:
+                (top, left) = self.screen.find_word(top, left)[0]
+            self.screen.set_selection_start(top, left)
+        (top, left) = self.screen.get_cell_from_point(event.pos())
+        cell = self.screen.get_cell(top, left)
+        if not cell.has_data or self.word_select_mode:
+            num = 1 if diff.y() < 0 else 0
+            (top, left) = self.screen.find_word(top, left)[num]
+        self.screen.set_selection_to_cell(top, left)
+
+    def clipboard_changed(self):
+        if self.clipboard.ownsClipboard():
+            return
+        self.screen.clear_selection()
 
     def paintEvent(self, event):
         painter = QtGui.QPainter()

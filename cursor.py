@@ -31,6 +31,7 @@ class TerminalCursor:
         self.parent = parent
         self.set_font(font_name, font_size)
         self.reset_attributes()
+        self._cursor_pos_stack = []
         if self.parent is not None:
             self.widget = self.parent.get_widget()
 
@@ -82,6 +83,20 @@ class TerminalCursor:
         cell.reset()
         self.widget.update(self.position())
 
+    def previous_column(self, scroll=True):
+        old_pos = self.position()
+        self.col -= 1
+        (width, height) = self.parent.get_size()
+        if self.col < 0:
+            if self.wrap:
+                self.col = width - 1
+                self.previous_row(scroll=scroll)
+            else:
+                self.col = 0
+        new_pos = self.position()
+        self.widget.update(old_pos)
+        self.widget.update(new_pos)
+
     def previous_row(self, scroll=True, reset_col=False):
         #self.get_cell().set_dirty()
         old_pos = self.position()
@@ -102,14 +117,14 @@ class TerminalCursor:
         self.parent.get_widget().update(old_pos)
         self.parent.get_widget().update(new_pos)
 
-    def advance_column(self):
+    def advance_column(self, scroll=True):
         old_pos = self.position()
         self.col += 1
         (width, height) = self.parent.get_size()
         if self.col >= width:
             if self.wrap:
                 self.col = 0
-                self.advance_row()
+                self.advance_row(scroll=scroll)
             else:
                 self.col = width - 1
         new_pos = self.position()
@@ -220,6 +235,14 @@ class TerminalCursor:
         return QtCore.QRect(self.col * self.col_size, 
                             (self.row - base) * self.row_size,
                             self.col_size, self.row_size)
+
+    #def set_eol(self):
+    #    (width, height) = self.parent.get_size()
+    #    self.log.warning("Set eol (%s, %s) (%s, %s)" % (self.row, self.col, 
+    #                self.col, width))
+    #    for idx in xrange(self.col, width):
+    #        cell = self.parent.get_cell(self.row, idx)
+    #        cell.set_eol(eol=True)
  
     def write(self, ch, advance=True):
         cell = self.get_cell() 
@@ -243,4 +266,13 @@ class TerminalCursor:
         position = self.position()
         cell = self.get_cell()
         cell.draw(painter, position, inverse=True)
+
+    def save_row_col(self):
+        self._cursor_pos_stack.append((self.row, self.col))
+
+    def restore_row_col(self):
+        if len(self._cursor_pos_stack) == 0:
+            self.log.warning("Trying to restore unsaved cursor position!")
+            return
+        (self.row, self.col) = self._cursor_pos_stack.pop()
 

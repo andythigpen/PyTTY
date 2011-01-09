@@ -206,7 +206,9 @@ class TerminalEscapeSequencer:
         self.log.debug("TXT")
         cursor = self.screen.get_cursor()
         idx = 0
-        for ch in data:
+        #for ch in data:
+        while idx < len(data):
+            ch = data[idx]
             idx += 1
             if ch == '\x1b':
                 raise EncounteredEscapeException(idx - 1)

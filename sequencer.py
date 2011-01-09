@@ -71,6 +71,7 @@ class EscapeSequence(object):
     def __init__(self, screen, channel):
         self.log = log.get_log(self)
         self.trace = TraceSequence(fall_through=True) #TODO change fall_through 
+        self.config = TerminalConfig()
         self.screen = screen
         self.channel = channel
         for attr in self.REQUIRED_ATTRS:
@@ -92,7 +93,7 @@ class NormalKeypadEscapeSequence(EscapeSequence):
         self.log.debug("Normal Keypad DECPNM")
         self.trace.end("Normal Keypad DECPNM")
         #FIXME this should be setting keypad keys, not cursor keys...
-        self.screen.set_cursor_keys(application=False)
+        #self.screen.set_cursor_keys(application=False)
         return 0
 
 
@@ -103,7 +104,7 @@ class ApplicationKeypadEscapeSequence(EscapeSequence):
         self.log.debug("Application Keypad DECPAM")
         self.trace.end("Application Keypad DECPAM")
         #FIXME this should be setting keypad keys, not cursor keys...
-        self.screen.set_cursor_keys(application=True)
+        #self.screen.set_cursor_keys(application=True)
         return 0
 
 

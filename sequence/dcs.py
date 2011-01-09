@@ -21,15 +21,43 @@ import binascii
 from c1control import DCSEscapeSequence
 
 class DCSRequestEscapeSequence(DCSEscapeSequence):
-    #MATCH = r'(?P<value>([0-9]+;*)+)*m'
-    MATCH = r'\+q(?P<one>[0-9a-fA-F]{2})(?P<two>[0-9a-fA-F]{2})'
+    MATCH = r'\+q(?P<total>(?P<one>[0-9a-fA-F]{2})(?P<two>[0-9a-fA-F]{2}))'
+
+    __terminfo = {
+        'ku' : '\x1bOA',
+        'kd' : '\x1bOB',
+        'kr' : '\x1bOC',
+        'kl' : '\x1bOD',
+        'k1' : '\x1bOP',
+        'k2' : '\x1bOQ',
+        'k3' : '\x1bOR',
+        'k4' : '\x1bOS',
+        'k5' : '\x1b[15~',
+        'k6' : '\x1b[17~',
+        'k7' : '\x1b[18~',
+        'k8' : '\x1b[19~',
+        'k9' : '\x1b[20~',
+        'kP' : '\x1b[5~',
+        'kN' : '\x1b[6~',
+    }
+
+    def __init__(self, *args, **kwargs):
+        DCSEscapeSequence.__init__(self, *args, **kwargs)
+        self.colors = self.config.get("Display", "colors", '256')
 
     def process(self, data, match):
         terminfo = binascii.a2b_hex(match.group('one')) + \
                    binascii.a2b_hex(match.group('two'))
-        self.__process_request(terminfo)
-
-    def __process_request(self, terminfo):
+        response = '\x1bP'
         if terminfo == 'Co':
-            # colors
-            pass
+            response += '1+r%s=%s\x1b\\' % (match.group('total'), 
+                        binascii.b2a_hex(self.colors))
+        elif terminfo in self.__terminfo:
+            response += '1+r%s=%s\x1b\\' % (match.group('total'),
+                        binascii.b2a_hex(self.__terminfo[terminfo]))
+        else:
+            self.log.warning("Unknown DCS code [%s]: %s" % (terminfo, 
+                             data.replace('\x1b', '\\x1b')))
+            response += '0+r%s\x1b\\' % match.group('total')
+        self.channel.send_keypress(response)
+

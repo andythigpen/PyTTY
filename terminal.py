@@ -615,13 +615,24 @@ class ScreenBuffer:
 
     def set_cursor_keys(self, application=True):
         self.application_cursor_keys = application
+        self.log.warning("Set application cursor keys: %s" % application)
 
     def process_keypress(self, event):
-        if hasattr(self, 'application_cursor_keys') and \
+        sequence = self.__process_key(event)
+        if sequence:
+            return sequence
+        elif hasattr(self, 'application_cursor_keys') and \
            self.application_cursor_keys:
             return self.__process_application_cursor_keys(event)
         else:
             return self.__process_normal_cursor_keys(event)
+
+    def __process_key(self, event):
+        if event.key() == QtCore.Qt.Key_PageUp:
+            return '\x1b[5~'
+        elif event.key() == QtCore.Qt.Key_PageDown:
+            return '\x1b[6~'
+        return False
 
     def __process_normal_cursor_keys(self, event):
         if event.key() == QtCore.Qt.Key_Up:
@@ -859,6 +870,8 @@ class TerminalWidget(QtGui.QWidget):
     def keyPressEvent(self, event):
         processed = self.screen.process_keypress(event)
         if processed:
+            self.log.debug("screen processed keypress: %s" % \
+                           processed.replace('\x1b', '\\x1b'))
             self.channel.send_keypress(processed)
         elif event.key() == QtCore.Qt.Key_F5:
             self.repaint()

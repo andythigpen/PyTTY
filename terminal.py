@@ -676,7 +676,7 @@ class ScreenBuffer:
     def set_selection_to_cell(self, top, left):
         if not hasattr(self, 'selection_start'):
             return
-        (row, col) = self.cursor.get_row_col()
+        self.cursor.save_row_col()
         self.cursor.set_row_col(*self.selection_start)
         while self.cursor.get_row_col() != (top, left):
             cell = self.cursor.get_cell()
@@ -693,7 +693,7 @@ class ScreenBuffer:
         if not cell.selected:
             cell.toggle_selection()
             self.parent.update(self.cursor.position())
-        self.cursor.set_row_col(row, col)
+        self.cursor.restore_row_col()
 
     def get_selection_text(self):
         text = ""

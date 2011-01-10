@@ -230,7 +230,7 @@ class XTermPlayback(QtGui.QWidget):
         for row in range(0, bottom):
             debug += u"%03d: " % row
             for col in range(0, self.term.screen.width):
-                debug += unicode(buf[row][col])
+                debug += unicode(buf[row][col]) or u' '
             debug += u"\n"
         self.trace.info("Screen buffer contents:\n%s" % debug)
 
@@ -253,7 +253,7 @@ if __name__ == "__main__":
                       type="string",
                       help="record terminal sequences for playback later.")
     parser.add_option("-p", "--playback", dest="playback", action="store",
-                      type="string",
+                      type="string", default="recorder",
                       help="Use this as a playback file.")
     (options, args) = parser.parse_args()
 

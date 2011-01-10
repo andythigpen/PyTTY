@@ -30,6 +30,7 @@ class CursorUpEscapeSequence(CSIEscapeSequence):
         cursor = self.screen.get_cursor()
         cursor.up(times)
 
+
 class CursorDownEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-9]*B'
 
@@ -40,6 +41,7 @@ class CursorDownEscapeSequence(CSIEscapeSequence):
         self.trace.end("Cursor Down (CUD) [%s]" % times)
         cursor = self.screen.get_cursor()
         cursor.down(times)
+
 
 class CursorRightEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-9]*C'
@@ -52,6 +54,7 @@ class CursorRightEscapeSequence(CSIEscapeSequence):
         cursor = self.screen.get_cursor()
         cursor.right(times)
 
+
 class CursorLeftEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-9]*D'
 
@@ -62,6 +65,7 @@ class CursorLeftEscapeSequence(CSIEscapeSequence):
         self.trace.end("Cursor Left (CUB) [%s]" % times)
         cursor = self.screen.get_cursor()
         cursor.left(times)
+
 
 class CursorPositionEscapeSequence(CSIEscapeSequence):
     MATCH = r'((?P<row>[0-9]+);(?P<col>[0-9]+))*H'
@@ -76,6 +80,7 @@ class CursorPositionEscapeSequence(CSIEscapeSequence):
         else:
             cursor.set_row_col(int(row) - 1, int(col) - 1)
 
+
 class CursorCharacterAbsoluteEscapeSequence(CSIEscapeSequence):
     MATCH = r'[0-9]*G'
 
@@ -87,4 +92,16 @@ class CursorCharacterAbsoluteEscapeSequence(CSIEscapeSequence):
         cursor = self.screen.get_cursor()
         (row, old_col) = cursor.get_row_col()
         cursor.set_row_col(row, col - 1)
+
+
+class LinePositionAbsoluteEscapeSequence(CSIEscapeSequence):
+    MATCH = r'(?P<row>[0-9]+)*(;(?P<col>[0-9]+))*d'
+
+    def process(self, data, match):
+        cursor = self.screen.get_cursor()
+        row = match.group('row') or 1
+        col = match.group('col') or cursor.col + 1
+        (row, col) = (int(row) - 1, int(col) - 1)
+        self.trace.end("Line Position Absolute (VPA) (%s, %s)" % (row, col))
+        cursor.set_row_col(row, col)
 

@@ -28,6 +28,10 @@ from config import SafeConfig
 APP_NAME = "PyTTY"
 
 class PyttyTabbar(QtGui.QTabBar):
+    def __init__(self, tabwidget):
+        QtGui.QTabBar.__init__(self)
+        self.tabwidget = tabwidget
+
     def tabSizeHint(self, index):
         '''Expand all tabs to equal width to size of window.'''
         if self.count() > 1:
@@ -36,6 +40,27 @@ class PyttyTabbar(QtGui.QTabBar):
             if not size.width() < 100:
                 return size
         return QtGui.QTabBar.tabSizeHint(self, index)
+
+    def contextMenuEvent(self, event):
+        event.accept()
+        menu = QtGui.QMenu()
+        idx = self.tabAt(event.pos())
+        menu.addAction('New Tab', self.tabwidget.add_new_tab)
+        if idx >= 0:
+            def duplicate():
+                self.tabwidget.duplicate_tab(idx)
+            menu.addAction('Duplicate Tab', duplicate)
+            def close():
+                self.tabwidget.close_tab(idx)
+            menu.addAction('Close Tab', close)
+            def set_title():
+                (title, ok) = QtGui.QInputDialog.getText(self, 'Set Title', 
+                        'Title (blank clears):')
+                if ok:
+                    self.tabwidget.set_title(title, idx)
+            menu.addSeparator()
+            menu.addAction('Set Title', set_title)
+        menu.exec_(event.globalPos())
 
 
 class PyttyEventFilter(QtCore.QObject):
@@ -325,6 +350,8 @@ class PyttyPage(QtGui.QWidget):
 
     def change_tab_title(self, title):
         sender = self.sender()
+        if hasattr(sender, 'custom_title') and sender.custom_title:
+            return
         for idx in xrange(0, self.tabs.count()):
             if self.tabs.widget(idx) == sender:
                 self.tabs.setTabText(idx, title)
@@ -353,7 +380,7 @@ class PyttyAddButton(QtGui.QPushButton):
 class PyttyTabWidget(QtGui.QTabWidget):
     def __init__(self):
         QtGui.QTabWidget.__init__(self)
-        bar = PyttyTabbar()
+        bar = PyttyTabbar(self)
         self.setTabBar(bar)
         self.setTabsClosable(True)
         self.setMovable(True)
@@ -408,6 +435,17 @@ class PyttyTabWidget(QtGui.QTabWidget):
             term.connect(username, password, host, port)
         else:
             self.add_new_tab()
+
+    def set_title(self, title, idx=-1):
+        if idx < 0:
+            idx = self.currentIndex()
+        widget = self.widget(idx)
+        if len(title) == 0:
+            self.setTabText(idx, 'PyTTY')
+            widget.custom_title = False
+        else:
+            self.setTabText(idx, title)
+            widget.custom_title = True
 
 
 class Pytty(QtGui.QMainWindow):

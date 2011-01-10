@@ -31,8 +31,10 @@ class PyttyTabbar(QtGui.QTabBar):
     def tabSizeHint(self, index):
         '''Expand all tabs to equal width to size of window.'''
         if self.count() > 1:
-            return QtCore.QSize(self.width() / self.count(), 
+            size = QtCore.QSize(self.width() / self.count(), 
                                 QtGui.QTabBar.tabSizeHint(self, 0).height())
+            if not size.width() < 100:
+                return size
         return QtGui.QTabBar.tabSizeHint(self, index)
 
 
@@ -49,6 +51,13 @@ class PyttyEventFilter(QtCore.QObject):
                event.modifiers() == QtCore.Qt.AltModifier:
                 idx = event.key() - QtCore.Qt.Key_0 - 1
                 self.tabs.setCurrentIndex(idx)
+                return True
+
+            # Alt + R to duplicate a session
+            if event.key() == QtCore.Qt.Key_R and \
+               event.modifiers() == QtCore.Qt.AltModifier:
+                idx = self.tabs.currentIndex()
+                self.tabs.duplicate_tab(idx)
                 return True
 
             # Shift + [Left|Right] to select tab focus
@@ -88,11 +97,12 @@ class PyttySavedList(QtGui.QListWidget):
 
 
 class PyttyPage(QtGui.QWidget):
-    def __init__(self, tabs):
+    def __init__(self, tabs, show_controls=True):
         QtGui.QWidget.__init__(self)
         self.tabs = tabs
         self.connection_threads = []
-        self.show_connection_page()
+        if show_controls:
+            self.show_connection_page()
         self.connecting = False
 
     def sizeHint(self):
@@ -177,27 +187,27 @@ class PyttyPage(QtGui.QWidget):
         layout = QtGui.QFormLayout()
 
         self.host_edit = QtGui.QLineEdit()
-        self.host_edit.returnPressed.connect(self.connect)
+        self.host_edit.returnPressed.connect(self.connect_event)
         self.host_edit.editingFinished.connect(self.set_connection_name)
         self.host_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Host:", self.host_edit)
 
         self.port_edit = QtGui.QLineEdit("22")
-        self.port_edit.returnPressed.connect(self.connect)
+        self.port_edit.returnPressed.connect(self.connect_event)
         self.port_edit.textEdited.connect(self.clear_saved_selection)
         validator = QtGui.QIntValidator(0, 65535, self)
         self.port_edit.setValidator(validator)
         layout.addRow("&Port:", self.port_edit)
 
         self.username_edit = QtGui.QLineEdit()
-        self.username_edit.returnPressed.connect(self.connect)
+        self.username_edit.returnPressed.connect(self.connect_event)
         self.username_edit.editingFinished.connect(self.set_connection_name)
         self.username_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Username:", self.username_edit)
 
         self.password_edit = QtGui.QLineEdit()
         self.password_edit.setEchoMode(QtGui.QLineEdit.Password)
-        self.password_edit.returnPressed.connect(self.connect)
+        self.password_edit.returnPressed.connect(self.connect_event)
         self.password_edit.textEdited.connect(self.clear_saved_selection)
         layout.addRow("&Password:", self.password_edit)
 
@@ -210,7 +220,7 @@ class PyttyPage(QtGui.QWidget):
 
         fname = os.path.join(sys.path[0], "icons", "login.png")
         self.login_button = QtGui.QPushButton(QtGui.QIcon(fname), "&Login")
-        self.login_button.clicked.connect(self.connect)
+        self.login_button.clicked.connect(self.connect_event)
         layout.addWidget(self.login_button)
         new_group.setLayout(layout)
         new_group.setMinimumWidth(250)
@@ -221,7 +231,7 @@ class PyttyPage(QtGui.QWidget):
         self.saved_items = PyttySavedList(new_group)
         self.saved_items.setResizeMode(QtGui.QListView.Fixed)
         self.saved_items.itemSelectionChanged.connect(self.changed_saved)
-        self.saved_items.itemDoubleClicked.connect(self.connect)
+        self.saved_items.itemDoubleClicked.connect(self.connect_event)
         saved_layout.addWidget(self.saved_items, 0, 0, 1, 3)
 
         self.load_saved_items()
@@ -256,7 +266,7 @@ class PyttyPage(QtGui.QWidget):
 
         self.setLayout(page_vlayout)
 
-    def connect(self):
+    def connect_event(self):
         if self.connecting:
             return
         self.connecting = True
@@ -265,8 +275,10 @@ class PyttyPage(QtGui.QWidget):
         password = str(self.password_edit.text())
         host = str(self.host_edit.text())
         port = int(self.port_edit.text())
-
         self.login_button.setDisabled(True)
+        self.connect(username, password, host, port)
+
+    def connect(self, username, password, host, port):
         idx = self.tabs.currentIndex()
         fname = os.path.join(sys.path[0], "icons", "loading.gif")
         self.tabs.setTabIcon(idx, QtGui.QIcon(fname))
@@ -303,7 +315,6 @@ class PyttyPage(QtGui.QWidget):
                 del term
                 self.tabs.setTabIcon(idx, QtGui.QIcon())
             self.connection_threads.remove(th)
-
 
         th.finished.connect(connection_finished)
         th.start()
@@ -384,6 +395,19 @@ class PyttyTabWidget(QtGui.QTabWidget):
 
     def add_tab_button_clicked(self, clicked):
         self.add_new_tab()
+
+    def duplicate_tab(self, idx):
+        old_term = self.widget(idx)
+        if hasattr(old_term, 'channel'):
+            username = old_term.channel.name
+            password = old_term.channel.passwd
+            host = old_term.channel.addr
+            port = old_term.channel.port
+            term = PyttyPage(self, show_controls=False)
+            self.add_new_tab(term, index=idx+1)
+            term.connect(username, password, host, port)
+        else:
+            self.add_new_tab()
 
 
 class Pytty(QtGui.QMainWindow):

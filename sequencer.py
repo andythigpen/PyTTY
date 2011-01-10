@@ -200,7 +200,9 @@ class TerminalEscapeSequencer:
             next_escape = data[1:].find('\x1b')
             if next_escape < 0:
                 next_escape = len(data)
-            raise UnsupportedEscapeException(next_escape, data)
+            else:
+                next_escape += 1
+            raise UnsupportedEscapeException(next_escape, data[:next_escape])
         return idx
 
     def _process_text(self, data):

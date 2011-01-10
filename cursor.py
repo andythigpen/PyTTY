@@ -32,6 +32,7 @@ class TerminalCursor:
         self.set_font(font_name, font_size)
         self.reset_attributes()
         self._cursor_pos_stack = []
+        self.replace_mode = True
         if self.parent is not None:
             self.widget = self.parent.get_widget()
 
@@ -69,6 +70,9 @@ class TerminalCursor:
 
     def set_wraparound(self, wrap=True):
         self.wrap = wrap
+
+    def set_replace_mode(self, replace=True):
+        self.replace_mode = replace
 
     def reset_attributes(self):
         self.fgcolor = QtGui.QColor(255, 255, 255)
@@ -233,6 +237,9 @@ class TerminalCursor:
                             self.col_size, self.row_size)
 
     def write(self, ch, advance=True):
+        if not self.replace_mode:
+            self.log.warning("Inserting cell")
+            self.parent.insert_cell(self.row, self.col)
         cell = self.get_cell() 
         cell.set_fgcolor(self.fgcolor)
         cell.set_bgcolor(self.bgcolor)

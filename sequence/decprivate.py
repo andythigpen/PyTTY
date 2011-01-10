@@ -73,5 +73,36 @@ class DECPrivateModeResetEscapeSequence(CSIEscapeSequence):
                 self.screen.restore_cursor()
             else:
                 self.log.warning("Unknown DEC Private Mode Reset value: %s" % \
-                                 value)
+                                 val)
+
+
+class ResetModeEscapeSequence(CSIEscapeSequence):
+    MATCH = r'(?P<value>([0-9]+;*)+)l'
+
+    def process(self, data, match):
+        values = match.group('value')
+        self.trace.end("Reset Mode (RM) [%s]" % values)
+        cursor = self.screen.get_cursor()
+        for val in values.split(';'):
+            if int(val) == 4:
+                self.log.debug("Replace mode")
+                cursor.set_replace_mode(replace=True)
+            else:
+                self.log.warning("Unknown Reset Mode value: %s" % val)
+
+
+class SetModeEscapeSequence(CSIEscapeSequence):
+    MATCH = r'(?P<value>([0-9]+;*)+)h'
+
+    def process(self, data, match):
+        values = match.group('value')
+        self.trace.end("Set Mode (SM) [%s]" % values)
+        cursor = self.screen.get_cursor()
+        for val in values.split(';'):
+            if int(val) == 4:
+                self.log.debug("Insert mode")
+                cursor.set_replace_mode(replace=False)
+            else:
+                self.log.warning("Unknown Set Mode value: %s" % val)
+
 

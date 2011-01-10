@@ -161,19 +161,19 @@ class TerminalRow(list):
 
         prev = self[0]
         rect = self.screen.create_rect_from_cell(row, 0)
-        text = unicode(self[0])
+        text = unicode(self[0]) or u' '
         for col in xrange(1, self.width):
             cell = self[col]
             if cell.foreground_matches(prev):
                 # merge the drawing of two cells
                 new_rect = self.screen.create_rect_from_cell(row, col)
                 rect = rect.unite(new_rect)
-                text += unicode(self[col])
+                text += unicode(self[col]) or u' '
             else:
                 # we encountered a new foreground color
                 prev.draw_text(painter, rect, text)
                 rect = self.screen.create_rect_from_cell(row, col)
-                text = unicode(self[col])
+                text = unicode(self[col]) or u' '
             prev = cell
         prev.draw_text(painter, rect, text)
 
@@ -275,6 +275,12 @@ class ScreenBuffer:
         scroll_bottom = self.get_scroll_bottom()
         del buf[scroll_bottom:scroll_bottom + num]
         self.parent.update()
+
+    def insert_cell(self, row, col):
+        buf = self.get_buffer()
+        buf[row].insert(col, TerminalCell())
+        if len(buf[row]) > self.width:
+            del buf[row][self.width - 1:]
 
     def delete_row(self, num=1):
         buf = self.get_buffer()
@@ -1040,10 +1046,6 @@ class SSHConnection(TerminalChannel):
         except Exception:
             self.log.exception()
             self.connected = False
-        del self.addr
-        del self.port
-        del self.name
-        del self.passwd
 
     def is_connected(self):
         return self.connected
@@ -1124,31 +1126,3 @@ class SSHTerminalWidget(TerminalWidget):
         self.channel.start_shell(self)
 
 
-'''
-if __name__ == "__main__":
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option("-r", "--record", dest="record", action="store",
-                      type="string",
-                      help="record terminal sequences for playback later.")
-    (options, args) = parser.parse_args()
-
-    print "Starting pytty"
-    try:
-        os.remove('output.log')
-    except OSError:
-        pass
-    config = TerminalConfig()
-
-    # set the application wide default log level
-    log_level = config.get("Log", "level", "none")
-    log.Log.DEFAULT_LOG_LEVEL = log.Log.LEVELS[log_level]
-
-    # start the application
-    app = QtGui.QApplication(sys.argv)
-    widget = SSHTerminalWidget('andyt', 'mnkey3', 'localhost')
-    if options.record:
-        widget.recorder = open(options.record, 'w')
-    widget.show()
-    sys.exit(app.exec_())
-'''

@@ -88,7 +88,8 @@ class TerminalCursor:
         self.widget.update(self.position())
 
     def previous_column(self, scroll=True):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col -= 1
         (width, height) = self.parent.get_size()
         if self.col < 0:
@@ -97,12 +98,14 @@ class TerminalCursor:
                 self.previous_row(scroll=scroll)
             else:
                 self.col = 0
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def previous_row(self, scroll=True, reset_col=False):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.row -= 1
         if reset_col:
             self.col = 0
@@ -113,12 +116,14 @@ class TerminalCursor:
             raise ScrollScreenException(direction=ScrollDirection.UP)
         if self.row < 0:
             self.row = 0
-        new_pos = self.position()
-        self.parent.get_widget().update(old_pos)
-        self.parent.get_widget().update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.parent.get_widget().update(old_pos)
+        #self.parent.get_widget().update(new_pos)
 
     def advance_column(self, scroll=True):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col += 1
         (width, height) = self.parent.get_size()
         if self.col >= width:
@@ -127,12 +132,14 @@ class TerminalCursor:
                 self.advance_row(scroll=scroll)
             else:
                 self.col = width - 1
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def advance_row(self, scroll=True, reset_col=True):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.row += 1
         if reset_col:
             self.col = 0
@@ -144,19 +151,22 @@ class TerminalCursor:
             if self.row >= buffer_size:
                 self.row = buffer_size - 1
             raise ScrollScreenException()
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def up(self, num=1):
         self.parent.reset_blink_timer()
         if self.row == 0:
             return
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.row -= num
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def down(self, num=1):
         self.parent.reset_blink_timer()
@@ -165,21 +175,25 @@ class TerminalCursor:
         if self.row + num >= (base + height):
             self.row = (base + height) - 1
             return
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.row += num
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def left(self, num=1):
         self.parent.reset_blink_timer()
         if self.col == 0:
             return
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col -= num
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def right(self, num=1):
         self.parent.reset_blink_timer()
@@ -187,48 +201,58 @@ class TerminalCursor:
         if self.col + num >= width:
             self.col = width - 1 
             return
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col += num
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def set_row_col(self, row, col):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col = col
         self.row = row
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def get_row_col(self):
         return (self.row, self.col)
 
     def reset_position(self):
         if self.parent.is_alternate_buffer():
-            old_pos = self.position()
+            #old_pos = self.position()
+            self.get_cell().dirty = True
             self.row = 0
             self.col = 0
-            new_pos = self.position()
-            self.widget.update(old_pos)
-            self.widget.update(new_pos)
+            #new_pos = self.position()
+            self.get_cell().dirty = True
+            #self.widget.update(old_pos)
+            #self.widget.update(new_pos)
         else:
             times = self.row - self.parent.get_base_row()
             self.parent.scroll(times=times)
 
     def reset_col(self):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.col = 0
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def reset_row(self):
-        old_pos = self.position()
+        #old_pos = self.position()
+        self.get_cell().dirty = True
         self.row = 0
-        new_pos = self.position()
-        self.widget.update(old_pos)
-        self.widget.update(new_pos)
+        #new_pos = self.position()
+        self.get_cell().dirty = True
+        #self.widget.update(old_pos)
+        #self.widget.update(new_pos)
 
     def position(self):
         base = self.parent.get_base_row()
@@ -247,7 +271,8 @@ class TerminalCursor:
         cell.set_font(self.font)
         if self.inverse:
             cell.set_inverse()
-        self.widget.update(self.position())
+        cell.dirty = True
+        #self.widget.update(self.position())
         if cell.selected:
             self.parent.clear_selection()
             cell.toggle_selection()

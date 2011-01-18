@@ -205,6 +205,8 @@ class ScreenBuffer:
         self.create_alternate_buffer()
         self.setup_timer_events()
         (self.col_size, self.row_size) = self.cursor.get_font_metrics()
+        self.log.warning("col_size=%s row_size=%s" % (self.col_size,
+                    self.row_size))
 
     @staticmethod
     def get_default_size():
@@ -406,7 +408,7 @@ class ScreenBuffer:
 
     def draw(self, painter, event):
         (top, left, bottom, right) = self.get_cells_from_rect(event.rect())
-        self.log.debug("Redrawing (%s,%s) to (%s,%s)" % (top, left, 
+        self.log.warning("Redrawing (%s,%s) to (%s,%s)" % (top, left, 
                                                          bottom, right))
         row_range = range(top, bottom)
         row_range.reverse()
@@ -433,7 +435,6 @@ class ScreenBuffer:
     def repaint_dirty_cells(self):
         rect = None
         top = self.base
-        buf_size = self.get_buffer_size()
         bottom = top + self.height
         buf_size = self.get_buffer_size()
         if bottom > buf_size:
@@ -458,7 +459,7 @@ class ScreenBuffer:
                        ScreenBuffer.is_rect_adjacent(rect, new_rect):
                         rect = rect.unite(new_rect)
                     else:
-                        self.parent.update(rect)
+                        self.parent.repaint(rect)
                         rect = new_rect
         if rect is not None:
             self.parent.update(rect)
@@ -514,15 +515,19 @@ class ScreenBuffer:
             scroll_top = self.get_scroll_top()
             scroll_bottom = self.get_scroll_bottom()
             buf = self.get_buffer()
-            first = scroll_top
+            first = scroll_top - 1
+            if first < 0:
+                first = 0
             last = scroll_bottom - 1
+            if last > len(buf):
+                last = len(buf) - 1
 
             rows = [TerminalRow(self.width, self) for x in xrange(0, times)]
             del buf[first:first + times]
             buf.insert(last, '')
             buf[last:last + 1] = rows
 
-            repaint_buf = buf[first:last + 1]
+            #repaint_buf = buf[first:last + 1]
             self.parent.update()
             return
 
@@ -807,7 +812,6 @@ class TerminalWidget(QtGui.QWidget):
         self.resize(width + self.scroll_bar_width, height)
         self.channel = channel 
         self.channel.dataReceived.connect(self.write)
-        self.channel.endOfDataBlock.connect(self.mark_end_of_data)
         self.channel.endOfFile.connect(self.close)
         self.sequencer = TerminalEscapeSequencer(self.screen, self.channel)
         self.dirty = False
@@ -846,17 +850,9 @@ class TerminalWidget(QtGui.QWidget):
             if row >= base + height:
                 self.screen.scroll_down(row - (base + height) + 1)
 
-    def mark_end_of_data(self):
-        self.end_of_data_block = True
-        self.screen.blink_cursor()          # start blinking again
-        if hasattr(self, 'dirty') and self.dirty:
-            self.update()
-            self.dirty = False
-        else:
-            self.screen.repaint_dirty_cells()
-
     def set_dirty(self):
         '''Means that the display needs to be completely repainted.'''
+        self.log.warning("screen.set_dirty")
         if self.end_of_data_block:
             self.update()
             self.dirty = False
@@ -1006,7 +1002,6 @@ class TerminalChannel(QtCore.QObject):
        data is sent to the terminal and endOfFile when the terminal wants to
        exit.'''
     dataReceived = QtCore.pyqtSignal(str)
-    endOfDataBlock = QtCore.pyqtSignal()
     endOfFile = QtCore.pyqtSignal()
 
     def __init__(self):
@@ -1082,22 +1077,15 @@ class SSHConnection(TerminalChannel):
 
         def run(self):
             self.log.debug("Running connection thread")
-            received = False
             while True:
-                (rlist, wlist, xlist) = select.select([self.sock], [], [], 0.05)
-                if self.sock in rlist:
-                    data = self.sock.recv(4096)
-                    if not data:
-                        self.log.info("*** EOF ***")
-                        self.parent.endOfFile.emit()
-                        break
-                    self.log.debug("Received: %s" % data.replace('\x1b', 
-                                   '\\x1b'))
-                    self.parent.dataReceived.emit(data)
-                    received = True
-                elif received:
-                    self.parent.endOfDataBlock.emit()
-                    received = False
+                data = self.sock.recv(4096)
+                if not data:
+                    self.log.info("*** EOF ***")
+                    self.parent.endOfFile.emit()
+                    break
+                self.log.debug("Received: %s" % data.replace('\x1b', 
+                               '\\x1b'))
+                self.parent.dataReceived.emit(data)
 
     def start_shell(self, term):
         if not self.connected:

@@ -23,6 +23,7 @@ import sys
 import log
 import select
 import paramiko
+from Queue import Queue, Empty
 from PyQt4 import QtGui, QtCore
 from config import TerminalConfig
 from cursor import TerminalCursor
@@ -205,8 +206,6 @@ class ScreenBuffer:
         self.create_alternate_buffer()
         self.setup_timer_events()
         (self.col_size, self.row_size) = self.cursor.get_font_metrics()
-        self.log.warning("col_size=%s row_size=%s" % (self.col_size,
-                    self.row_size))
 
     @staticmethod
     def get_default_size():
@@ -408,7 +407,7 @@ class ScreenBuffer:
 
     def draw(self, painter, event):
         (top, left, bottom, right) = self.get_cells_from_rect(event.rect())
-        self.log.warning("Redrawing (%s,%s) to (%s,%s)" % (top, left, 
+        self.log.debug("Redrawing (%s,%s) to (%s,%s)" % (top, left, 
                                                          bottom, right))
         row_range = range(top, bottom)
         row_range.reverse()
@@ -459,7 +458,7 @@ class ScreenBuffer:
                        ScreenBuffer.is_rect_adjacent(rect, new_rect):
                         rect = rect.unite(new_rect)
                     else:
-                        self.parent.repaint(rect)
+                        self.parent.update(rect)
                         rect = new_rect
         if rect is not None:
             self.parent.update(rect)
@@ -626,7 +625,7 @@ class ScreenBuffer:
 
     def set_cursor_keys(self, application=True):
         self.application_cursor_keys = application
-        self.log.warning("Set application cursor keys: %s" % application)
+        self.log.debug("Set application cursor keys: %s" % application)
 
     def process_keypress(self, event):
         sequence = self.__process_key(event)
@@ -788,6 +787,40 @@ class ScreenBuffer:
         return (first, last)
 
 
+class SequencerWorker(QtCore.QThread):
+    def __init__(self, sequencer, screen, queue):
+        QtCore.QThread.__init__(self)
+        #self.log = log.get_log(self)
+        self.sequencer = sequencer
+        self.screen = screen
+        self.queue = queue
+        self.config = TerminalConfig()
+        self.focus_on_output = self.config.getboolean("Cursor",
+                                                      "focusonoutput", True)
+        self.running = False
+
+    def run(self):
+        self.running = True
+        while self.running:
+            try:
+                data = self.queue.get(True, 1)
+            except Empty:
+                continue
+            self.sequencer.process(data)
+            self.screen.repaint_dirty_cells()
+            if self.focus_on_output:
+                cursor = self.screen.get_cursor()
+                (row, col) = cursor.get_row_col()
+                (width, height) = self.screen.get_size()
+                base = self.screen.base
+                if row >= base + height:
+                    self.screen.scroll_down(row - (base + height) + 1)
+            self.queue.task_done()
+
+    def stop(self):
+        self.running = False
+
+
 class TerminalWidget(QtGui.QWidget):
     DEBUG_MARK = 1
 
@@ -802,11 +835,9 @@ class TerminalWidget(QtGui.QWidget):
         self.config = TerminalConfig()
         self.scroll_bar_width = self.config.getint("Display", 
                                                    "scrollbarsize", 14)
-        self.focus_on_output = self.config.getboolean("Cursor",
-                                                      "focusonoutput", True)
-        #self.setWindowTitle(APP_NAME)
         self.screen = ScreenBuffer(parent=self)
         self.scroll_bar = QtGui.QScrollBar(self)
+        self.scroll_bar.setCursor(QtCore.Qt.ArrowCursor)
         self.scroll_bar.valueChanged.connect(self.scrollEvent)
         (width, height) = self.screen.get_pixel_size()
         self.resize(width + self.scroll_bar_width, height)
@@ -821,6 +852,10 @@ class TerminalWidget(QtGui.QWidget):
         self.clipboard = QtGui.QApplication.clipboard()
         self.clipboard.dataChanged.connect(self.clipboard_changed)
         self.word_select_mode = False
+        self.queue = Queue()
+        self.worker_thread = SequencerWorker(self.sequencer, self.screen, 
+                                             self.queue)
+        self.worker_thread.start()
 
     @staticmethod
     def get_default_size():
@@ -833,26 +868,16 @@ class TerminalWidget(QtGui.QWidget):
     def close(self):
         self.log.debug("End of file received")
         self.closing.emit()
+        if hasattr(self, 'worker_thread') and self.worker_thread.isRunning():
+            self.worker_thread.stop()
+            self.worker_thread.wait(1500)
         QtGui.QWidget.close(self)
 
     def write(self, data):
-        self.end_of_data_block = False
-        if hasattr(self, "recorder"):
-            self.recorder.write(data)
-        self.sequencer.process(data)
-        self.screen.repaint_dirty_cells()
-
-        if self.focus_on_output:
-            cursor = self.screen.get_cursor()
-            (row, col) = cursor.get_row_col()
-            (width, height) = self.screen.get_size()
-            base = self.screen.base
-            if row >= base + height:
-                self.screen.scroll_down(row - (base + height) + 1)
+        self.queue.put(data)
 
     def set_dirty(self):
         '''Means that the display needs to be completely repainted.'''
-        self.log.warning("screen.set_dirty")
         if self.end_of_data_block:
             self.update()
             self.dirty = False
@@ -870,6 +895,7 @@ class TerminalWidget(QtGui.QWidget):
         return QtGui.QWidget.event(self, event)
 
     def keyPressEvent(self, event):
+        #TODO remove debugging stuff...
         processed = self.screen.process_keypress(event)
         if processed:
             self.log.debug("screen processed keypress: %s" % \
@@ -888,7 +914,6 @@ class TerminalWidget(QtGui.QWidget):
         elif event.key() == QtCore.Qt.Key_V and \
              event.modifiers() == (QtCore.Qt.ShiftModifier | \
                                    QtCore.Qt.ControlModifier):
-            self.log.warning("paste")
             self.channel.send_keypress(str(self.clipboard.text()))
         else:
             self.log.debug("Keypress: %s" % event.text())
